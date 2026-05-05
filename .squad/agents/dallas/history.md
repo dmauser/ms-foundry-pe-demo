@@ -20,4 +20,9 @@
 
 ## Learnings
 
-<!-- Append new learnings below. -->
+**2026-05-05: Program.cs Updated for Managed Identity (DefaultAzureCredential)**
+- Switched from AzureKeyCredential (API key auth) to DefaultAzureCredential for AIServices resources
+- Rationale: Subscription policy enforces disableLocalAuth=true; managed identity is now the only auth method
+- Impact: Removed AzureOpenAI__ApiKey from app settings; credential chain now managed by Azure identity infrastructure
+- Validation: Public endpoint tested successfully; app resolves identity via App Service managed identity
+- Next: Phase 2 will verify identity works through Private Endpoint (DNS override + private VNet path)

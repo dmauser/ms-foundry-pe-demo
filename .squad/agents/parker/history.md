@@ -20,4 +20,9 @@
 
 ## Learnings
 
-<!-- Append new learnings below. -->
+**2026-05-05: Azure AI Foundry Deployment Learnings (Coordinator phase)**
+- AIServices kind (Foundry) is the target architecture when subscription enforces disableLocalAuth=true (no standalone Azure OpenAI)
+- GlobalStandard SKU is required when Standard SKU is not available in the chosen region (centralus)
+- Custom domain endpoint (foundry-demo-ai.cognitiveservices.azure.com) is essential for Private Endpoint DNS zone override in Phase 2
+- Resource naming with consistent prefix (foundry-demo-*) simplifies cross-resource references in PE configuration
+- Phase 2 will require: private endpoint creation, private DNS zone linking, subnet/VNet Integration, and disablePublicNetworkAccess toggle
