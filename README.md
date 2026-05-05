@@ -191,7 +191,7 @@ scripts/01-deploy-public-access.sh
 
 **After Phase 1:**
 - Visit `https://foundry-demo-app-<suffix>.azurewebsites.net`
-- Diagnostics badge: 🟢 **PRIVATE** (App Service is in the cloud)
+- Diagnostics badge: 🔴 **PUBLIC** (App Service not yet in VNet)
 - Chat works from laptop (public endpoint)
 - Chat works from App Service (public endpoint)
 
@@ -204,14 +204,14 @@ scripts/02-enable-private-access.sh
 
 **What this does:**
 - Enables VNet Integration on App Service
-- Creates Private Endpoint in `Foundry Subnet` (10.0.1.0/24)
+- Creates Private Endpoint in `foundry-subnet` (10.0.2.0/24)
 - Configures Private DNS Zone for `foundry-demo-ai-<suffix>.cognitiveservices.azure.com`
 - **Disables public access** on the Foundry resource
 - Updates Private DNS A record to point to private endpoint IP
 
 **After Phase 2:**
 - Visit `https://foundry-demo-app-<suffix>.azurewebsites.net`
-- Diagnostics badge: 🟢 **PRIVATE** (resolves to 10.0.1.x — RFC1918)
+- Diagnostics badge: 🟢 **PRIVATE** (resolves to 10.0.2.x private endpoint IP)
 - Chat works from App Service (private endpoint)
 - Chat **fails** from laptop (public access blocked, can't route to private IP)
 
@@ -223,7 +223,7 @@ scripts/02-enable-private-access.sh
 
 | Scenario | Phase 1 (Public) | Phase 2 (Private) | Indicator |
 |----------|-----------------|-------------------|-----------|
-| **App Service** — DNS resolution | Public IP | Private IP (10.0.1.x) | ✓ Changes |
+| **App Service** — DNS resolution | Public IP | Private IP (10.0.2.x) | ✓ Changes |
 | **App Service** — Chat works | ✅ Yes | ✅ Yes | 🟢 Uninterrupted |
 | **Laptop** — DNS resolution | Public IP | ❌ Cannot resolve (or times out) | — |
 | **Laptop** — Chat works | ✅ Yes | ❌ No | 🔴 Blocked as expected |
@@ -245,7 +245,7 @@ scripts/02-enable-private-access.sh
 
 3. **Reconnect at Phase 2:**
    - Refresh `https://foundry-demo-app-<suffix>.azurewebsites.net`
-   - Click "Run Diagnostics" → shows 🟢 **PRIVATE**, resolves to private IP (10.0.1.x)
+   - Click "Run Diagnostics" → shows 🟢 **PRIVATE**, resolves to private IP (10.0.2.x)
    - Type "hello" in Chat Test → response appears
    - Say: "Same app, still works. But look—the endpoint is now private."
 
