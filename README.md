@@ -1,311 +1,403 @@
-# Azure OpenAI Private Endpoint Demo
+# 🔒 Azure AI Foundry — Private Endpoint Demo
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-blue)](https://dotnet.microsoft.com/download/dotnet/8.0)
-[![Azure](https://img.shields.io/badge/Azure-OpenAI-0078D4)](https://azure.microsoft.com/en-us/products/ai-services/openai-service/)
+[![Azure Foundry](https://img.shields.io/badge/Azure-AI%20Foundry-0078D4)](https://azure.microsoft.com/en-us/products/ai-services/foundry/)
 
-## Overview
+**A hands-on demo proving secure private-endpoint access to Azure AI Foundry models using VNet Integration + Managed Identity.**
 
-This demo showcases the migration from public to private endpoint access for Azure OpenAI using App Service VNet Integration. It illustrates how to securely connect your applications to Azure AI services while maintaining network isolation and compliance requirements.
+This repository showcases the architectural transition from public to private endpoint connectivity, demonstrating how enterprise applications can maintain network isolation while consuming AI services—with **zero API keys**.
 
-**Key Insight:** App Service remains publicly accessible (users can reach it), but all outbound connections to Azure OpenAI transit through a private endpoint, demonstrating a hybrid-access security pattern commonly used in enterprise environments.
+---
+
+## Quick Facts
+
+| Aspect | Value |
+|--------|-------|
+| **Resource Type** | Azure AI Services (AIServices / "Foundry" in Portal) |
+| **Model** | `gpt-4o-mini` (GlobalStandard) |
+| **Authentication** | Managed Identity (DefaultAzureCredential) |
+| **Region** | `centralus` |
+| **Live Demo** | https://foundry-demo-app.azurewebsites.net |
+| **Architecture** | .NET 8 minimal API + embedded dark-theme UI |
 
 ---
 
 ## Architecture
 
-### Before: Public Access
+### Phase 1: Public Access (Before)
 ```
-┌─────────────┐
-│    User     │
-└──────┬──────┘
-       │ (HTTPS)
-       ▼
-┌──────────────────────────┐
-│   App Service (public)   │
-└──────┬───────────────────┘
-       │ (HTTPS, public route)
-       ▼
-    Internet
-       │
-       ▼
-┌──────────────────────────────┐
-│  Azure OpenAI (public)       │
-│  *.openai.azure.com          │
-└──────────────────────────────┘
+┌──────────┐                 ┌────────────────────────────────────┐
+│  Laptop  │                │   Azure Cloud                       │
+│  .NET    │──────https────▶│  ┌──────────────────────────────┐  │
+│  App     │   (public)     │  │  Azure AI Foundry            │  │
+└──────────┘                │  │  🟢 Public Endpoint          │  │
+                            │  │  gpt-4o-mini                 │  │
+┌──────────┐                │  │  ✓ Works from anywhere       │  │
+│  App     │                │  └──────────────────────────────┘  │
+│ Service  │───────https───▶│         ✓ Fully Accessible        │
+│  .NET    │   (public)     │                                      │
+└──────────┘                └────────────────────────────────────┘
 ```
 
-### After: Private Access
+### Phase 2: Private Access (After)
 ```
-┌─────────────┐
-│    User     │
-└──────┬──────┘
-       │ (HTTPS)
-       ▼
-┌──────────────────────────────────────────┐
-│      App Service (public)                │
-│      ↓ VNet Integration                  │
-│  ┌────────────────────────────────────┐  │
-│  │   Azure Virtual Network (VNet)     │  │
-│  │                                    │  │
-│  │  ┌──────────────────────────────┐  │  │
-│  │  │ integration-subnet           │  │  │
-│  │  │ (delegated to               │  │  │
-│  │  │  Microsoft.Web/serverFarms) │  │  │
-│  │  └──────────────────────────────┘  │  │
-│  │                                    │  │
-│  │  ┌──────────────────────────────┐  │  │
-│  │  │ pe-subnet                    │  │  │
-│  │  │ ┌────────────────────────┐   │  │  │
-│  │  │ │ Private Endpoint       │   │  │  │
-│  │  │ │ (10.x.x.x via RFC1918)│   │  │  │
-│  │  │ └────────────────────────┘   │  │  │
-│  │  └──────────────────────────────┘  │  │
-│  └────────────────────────────────────┘  │
-└──────────────────────────────────────────┘
-       │ (Private route via PE)
-       ▼
-┌──────────────────────────────┐
-│  Azure OpenAI (private)      │
-│  RFC1918 IP (10.x.x.x)       │
-│  Private DNS Zone:           │
-│  privatelink.openai.azure.com│
-└──────────────────────────────┘
+┌──────────┐                 ┌──────────────────────────────────────┐
+│  Laptop  │                │   Azure Cloud                        │
+│  .NET    │──────https────▶│  ┌────────────────────────────────┐ │
+│  App     │   (public)     │  │  Azure AI Foundry              │ │
+│  ❌ FAILS│   ✗ BLOCKED    │  │  🔴 Public Access Disabled    │ │
+└──────────┘                │  │  gpt-4o-mini                   │ │
+                            │  └────────────────────────────────┘ │
+┌─────────────────────┐    │  ┌───────────────────────────────┐  │
+│  App Service        │    │  │   VNet (10.0.0.0/16)          │  │
+│  ┌─────────────────┐│    │  │  ┌───────────────────────────┐ │  │
+│  │  .NET App       ││    │  │  │ Private Endpoint           │ │  │
+│  │  (private IP)   ││    │  │  │ 10.0.1.10                  │ │  │
+│  │  🟢 WORKS       ││───▶│  │  └───────────────────────────┘ │  │
+│  │  (private)      ││    │  │         ▲                       │  │
+│  └─────────────────┘│    │  │         │ (private)             │  │
+│  └─────────────────┘    │  │  Private DNS: foundry-demo-ai  │  │
+└─────────────────────┘    │  │  .cognitiveservices.azure.com  │  │
+                            │  └───────────────────────────────┘  │
+                            └──────────────────────────────────────┘
 ```
 
 ---
 
-## Key Concepts
+## Demo Flow
 
-✅ **App Service Remains Public** — Users can continue accessing your application via its public URL.
+### 1. **Phase 1 Deployment** — Everything Works
+- Deploy foundry-demo-ai, App Service, VNet, App Service Plan
+- App Service has **no** VNet integration yet
+- Public access is enabled on foundry-demo-ai
+- ✅ Laptop can call `/api/ask` → Azure AI Foundry (public IP)
+- ✅ App Service can call `/api/ask` → Azure AI Foundry (public IP)
+- **Badge shows:** 🔴 **PUBLIC**
 
-✅ **Private Outbound Access** — All communication from App Service to Azure OpenAI flows through the private endpoint, never traversing the public internet.
+### 2. **Phase 2 Deployment** — Transition to Private
+- Enable VNet Integration on App Service
+- Create Private Endpoint in VNet
+- Configure Private DNS Zone
+- Disable public access on foundry-demo-ai
+- ❌ Laptop can call `/api/ask` → fails (public blocked, can't reach private endpoint)
+- ✅ App Service can call `/api/ask` → works (private IP → private endpoint)
+- **Badge shows:** 🟢 **PRIVATE**
 
-✅ **Resource-Specific Endpoints** — Uses `https://<resource>.openai.azure.com/` (not regional endpoints) for deterministic private DNS resolution.
-
-✅ **Private DNS Integration** — The zone `privatelink.openai.azure.com` is linked to your VNet, resolving the Azure OpenAI resource to its private RFC1918 IP address.
-
-✅ **Network Evidence** — The demo UI displays actual DNS resolution results and detects whether traffic is flowing privately (RFC1918) or publicly.
-
----
-
-## Demo Application
-
-### Technology Stack
-- **.NET 8** minimal API backend
-- **Dark-themed web UI** with real-time diagnostics
-- **Azure OpenAI SDK** for model interaction
-
-### Features
-- 🟢 **PRIVATE** badge — Confirms RFC1918 (10.x.x.x) connectivity
-- 🔴 **PUBLIC** badge — Shows public internet routing
-- **DNS Resolution Panel** — Displays resolved IPs for the Azure OpenAI endpoint
-- **Chat Interface** — Test live connectivity to your deployed model
-- **Diagnostics Endpoint** — JSON-formatted network evidence for programmatic validation
-
-### Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Serves the web UI |
-| `/api/diagnostics` | GET | Returns network diagnostics (DNS, IP detection, routing) |
-| `/api/ask?prompt=...` | GET | Proxies chat requests to Azure OpenAI |
+**What the customer sees:**
+- Before: "Your app works from the cloud, but also from my laptop."
+- After: "Now the cloud app still works, but my laptop gets blocked. That's the security boundary."
 
 ---
 
 ## Prerequisites
 
-- **Azure Subscription** with OpenAI resource quota
-- **Azure CLI** (v2.50+)
-- **.NET 8 SDK** ([download](https://dotnet.microsoft.com/download/dotnet/8.0))
-- **GitHub CLI** (optional, for publishing)
+- **Azure Subscription** with enough quota for:
+  - Azure AI Services (Foundry)
+  - App Service + App Service Plan
+  - Virtual Network + Private Endpoint
+  - Private DNS Zone
+- **Local Development:**
+  - .NET 8 SDK or later
+  - Azure CLI (az)
+  - Bash shell (WSL2, Git Bash, or native Linux/macOS)
+- **Permissions:**
+  - Contributor role on the resource group
 
 ---
 
 ## Quick Start (Local Development)
 
+### 1. Clone and prepare environment
+
 ```bash
-# Navigate to the source directory
-cd src
-
-# Run the application
-dotnet run
-
-# Open your browser
-# http://localhost:5000
+git clone https://github.com/dmauser/ms-foundry-pe-demo.git
+cd ms-foundry-pe-demo
+az login
+az account set --subscription "YOUR_SUBSCRIPTION_ID"
 ```
 
-The app will start on `http://localhost:5000` with hot reload enabled.
+### 2. Run locally with DefaultAzureCredential
+
+```bash
+# Must be logged in via az login
+cd src
+dotnet run
+```
+
+The app will start on `http://localhost:5000`. Open http://localhost:5000/ in your browser.
+
+- **Diagnostics** will show: `🔴 PUBLIC` (local laptop connecting directly)
+- **Chat Test** will work if:
+  - You have access to foundry-demo-ai (same subscription)
+  - Public endpoint is enabled
+  - DefaultAzureCredential can authenticate (from `az login`)
 
 ---
 
 ## Azure Deployment
 
-### High-Level Steps
-
-1. **Create Resource Group**
-   ```bash
-   az group create --name myRG --location eastus
-   ```
-
-2. **Create Azure OpenAI Resource**
-   - Deploy a `gpt-4o-mini` model
-
-3. **Create App Service Plan & App**
-   ```bash
-   az appservice plan create --name myAppPlan --resource-group myRG --sku B1 --is-linux
-   az webapp create --name myApp --plan myAppPlan --resource-group myRG --runtime "dotnetcore:8.0"
-   ```
-
-4. **Configure Application Settings**
-   ```bash
-   az webapp config appsettings set --name myApp --resource-group myRG --settings \
-     AzureOpenAI__Endpoint="https://<your-resource>.openai.azure.com/" \
-     AzureOpenAI__DeploymentName="gpt-4o-mini" \
-     AzureOpenAI__ApiKey="<your-api-key>"
-   ```
-
-5. **Deploy Application**
-   ```bash
-   cd src
-   dotnet publish -c Release -o ./publish
-   az webapp deployment source config-zip --name myApp --resource-group myRG --src-path ./publish.zip
-   ```
-
-6. **Test Public Access**
-   - Visit `https://<myApp>.azurewebsites.net/`
-   - Confirm 🔴 **PUBLIC** badge
-
-7. **Create Virtual Network & Subnets**
-   ```bash
-   az network vnet create --name myVNet --resource-group myRG --address-prefix 10.0.0.0/16
-   az network vnet subnet create --name integration-subnet --vnet-name myVNet --resource-group myRG \
-     --address-prefix 10.0.1.0/24 --delegations Microsoft.Web/serverFarms
-   az network vnet subnet create --name pe-subnet --vnet-name myVNet --resource-group myRG \
-     --address-prefix 10.0.2.0/24
-   ```
-
-8. **Enable VNet Integration**
-   ```bash
-   az webapp vnet-integration add --name myApp --resource-group myRG --vnet myVNet --subnet integration-subnet
-   ```
-
-9. **Create Private Endpoint & Private DNS**
-   - See [Full Portal Walkthrough](docs/demo-walkthrough.md) for detailed steps
-
-10. **Disable Public Network Access on Azure OpenAI**
-    ```bash
-    az cognitiveservices account update --name <your-resource> --resource-group myRG \
-      --public-network-access false
-    ```
-
-11. **Test Private Access**
-    - Visit `https://<myApp>.azurewebsites.net/`
-    - Confirm 🟢 **PRIVATE** badge
-
-📖 **Full instructions:** See [docs/demo-walkthrough.md](docs/demo-walkthrough.md) for detailed Azure Portal steps.
-
----
-
-## App Settings Reference
-
-| Setting | Description | Example |
-|---------|-------------|---------|
-| `AzureOpenAI__Endpoint` | Azure OpenAI resource endpoint | `https://myresource.openai.azure.com/` |
-| `AzureOpenAI__DeploymentName` | Deployment name within your resource | `gpt-4o-mini` |
-| `AzureOpenAI__ApiKey` | API key for authentication | `(generated from portal)` |
-
----
-
-## Validation & Verification
-
-### From Your Laptop (Before Private Endpoint)
+### Phase 1: Deploy Public Access
 
 ```bash
-# Should resolve to a public IP
-nslookup <your-resource>.openai.azure.com
-
-# Should succeed (public access)
-curl https://<your-resource>.openai.azure.com/openai/deployments \
-  -H "api-key: <your-api-key>"
+# From the repo root
+scripts/01-deploy-public-access.sh
 ```
 
-### From App Service (via Kudu Console or SSH)
+**What this does:**
+- Creates resource group: `rg-foundry-demo`
+- Deploys Azure AI Foundry: `foundry-demo-ai` (gpt-4o-mini, GlobalStandard)
+- Deploys App Service Plan: `foundry-demo-plan` (Linux, P1V2)
+- Deploys App Service: `foundry-demo-app`
+- Creates VNet: `foundry-demo-vnet` (10.0.0.0/16)
+- Configures App Settings on foundry-demo-app:
+  - `AzureOpenAI__Endpoint = https://foundry-demo-ai.cognitiveservices.azure.com/`
+  - `AzureOpenAI__DeploymentName = gpt-4o-mini`
+- Assigns managed identity to App Service
+- **Leaves public access enabled** on foundry-demo-ai
+
+**After Phase 1:**
+- Visit https://foundry-demo-app.azurewebsites.net
+- Diagnostics badge: 🟢 **PRIVATE** (App Service is in the cloud)
+- Chat works from laptop (public endpoint)
+- Chat works from App Service (public endpoint)
+
+### Phase 2: Enable Private Access
 
 ```bash
-# Diagnose network routing
-curl https://<myApp>.azurewebsites.net/api/diagnostics | jq
-
-# Test model connectivity
-curl "https://<myApp>.azurewebsites.net/api/ask?prompt=Hello"
+# From the repo root
+scripts/02-enable-private-access.sh
 ```
 
-### Expected Behavior Matrix
+**What this does:**
+- Enables VNet Integration on App Service
+- Creates Private Endpoint in `Foundry Subnet` (10.0.1.0/24)
+- Configures Private DNS Zone for `foundry-demo-ai.cognitiveservices.azure.com`
+- **Disables public access** on foundry-demo-ai
+- Updates Private DNS A record to point to private endpoint IP
 
-| Scenario | Direct from Laptop | From App Service |
-|----------|-------------------|-----------------|
-| **Before Setup (Public)** | ✅ 200 OK, public IP | ✅ 200 OK, 🔴 PUBLIC |
-| **After VNet Integration Only** | ✅ 200 OK, public IP | ✅ 200 OK, 🔴 PUBLIC |
-| **After Private Endpoint + Public Disabled** | ❌ 403 Forbidden | ✅ 200 OK, 🟢 PRIVATE |
-
----
-
-## Security Best Practices
-
-🔒 **Never commit API keys** — Use environment variables, App Service app settings, or Key Vault.
-
-🔒 **Use Key Vault References** — Reference secrets via `@Microsoft.KeyVault(...)` syntax in app settings.
-
-🔒 **Rotate Keys Regularly** — Especially after demos or before production deployments.
-
-🔒 **Prefer Managed Identity** — In production, use Azure Managed Identity instead of API keys.
-
-🔒 **Network Isolation** — Ensure private endpoints are properly isolated; monitor outbound traffic.
+**After Phase 2:**
+- Visit https://foundry-demo-app.azurewebsites.net
+- Diagnostics badge: 🟢 **PRIVATE** (resolves to 10.0.1.x — RFC1918)
+- Chat works from App Service (private endpoint)
+- Chat **fails** from laptop (public access blocked, can't route to private IP)
 
 ---
 
-## Additional Documentation
+## Validation Results
 
-- 📖 [Full Azure Portal Walkthrough](docs/demo-walkthrough.md) — Step-by-step instructions for private endpoint configuration
-- 🔍 [Network Evidence Reference](docs/network-evidence.md) — Understanding DNS resolution and RFC1918 detection
+### Expected Behavior
+
+| Scenario | Phase 1 (Public) | Phase 2 (Private) | Indicator |
+|----------|-----------------|-------------------|-----------|
+| **App Service** — DNS resolution | Public IP | Private IP (10.0.1.x) | ✓ Changes |
+| **App Service** — Chat works | ✅ Yes | ✅ Yes | 🟢 Uninterrupted |
+| **Laptop** — DNS resolution | Public IP | ❌ Cannot resolve (or times out) | — |
+| **Laptop** — Chat works | ✅ Yes | ❌ No | 🔴 Blocked as expected |
+| **Badge** (App Service UI) | 🔴 PUBLIC | 🟢 PRIVATE | Visual confirmation |
+
+### Running the Demo
+
+1. **Start at Phase 1:**
+   - Open https://foundry-demo-app.azurewebsites.net on a customer's laptop
+   - Click "Run Diagnostics" → shows 🔴 **PUBLIC**, resolves to public IP
+   - Type "hello" in Chat Test → response appears
+   - Say: "Notice the endpoint is publicly accessible right now."
+
+2. **Run Phase 2 deployment:**
+   ```bash
+   scripts/02-enable-private-access.sh
+   ```
+   - Wait ~2 minutes for DNS propagation
+
+3. **Reconnect at Phase 2:**
+   - Refresh https://foundry-demo-app.azurewebsites.net
+   - Click "Run Diagnostics" → shows 🟢 **PRIVATE**, resolves to private IP (10.0.1.x)
+   - Type "hello" in Chat Test → response appears
+   - Say: "Same app, still works. But look—the endpoint is now private."
+
+4. **From your laptop:**
+   - Try to connect to the Foundry endpoint directly → fails (connection refused)
+   - Try calling `dotnet run` and hitting `/api/ask` → fails (can't resolve or access)
+   - Say: "From the outside, the endpoint is completely blocked. Only the VNet can reach it."
+
+---
+
+## App Configuration
+
+### Environment Variables
+
+The App Service is configured with these variables (no API key required):
+
+```
+AzureOpenAI__Endpoint = https://foundry-demo-ai.cognitiveservices.azure.com/
+AzureOpenAI__DeploymentName = gpt-4o-mini
+```
+
+### Authentication Flow
+
+**No API keys. Uses Managed Identity:**
+
+```csharp
+// In Program.cs
+var credential = new DefaultAzureCredential();
+var client = new AzureOpenAIClient(new Uri(endpoint), credential);
+```
+
+The App Service's system-assigned managed identity is granted **Cognitive Services User** role on foundry-demo-ai.
+
+---
+
+## API Endpoints
+
+### `GET /` — HTML UI
+Returns the embedded dark-theme dashboard.
+
+### `GET /api/diagnostics` — Network Diagnostics
+Checks network connectivity and returns JSON:
+
+```json
+{
+  "hostname": "foundry-demo-ai.cognitiveservices.azure.com",
+  "resolvedIPs": ["10.0.1.10"],
+  "isPrivate": true,
+  "websitePrivateIP": "10.0.2.5",
+  "vnetIntegrated": true,
+  "timestamp": "2025-05-05T16:37:25Z"
+}
+```
+
+- **`isPrivate`**: `true` if all resolved IPs are RFC1918 (10.x, 172.16–31.x, 192.168.x.x)
+- **`vnetIntegrated`**: `true` if `WEBSITE_PRIVATE_IP` environment variable is set (indicates VNet Integration)
+
+### `GET /api/ask?prompt=hello` — Chat API
+Sends prompt to gpt-4o-mini and returns JSON:
+
+```json
+{
+  "prompt": "hello",
+  "response": "Hello! How can I help you today?",
+  "latencyMs": 456,
+  "model": "gpt-4o-mini",
+  "timestamp": "2025-05-05T16:37:25Z"
+}
+```
+
+On error (network, auth, model):
+```json
+{
+  "error": "connection refused",
+  "prompt": "hello"
+}
+```
+
+---
+
+## Security Notes
+
+### Managed Identity (Zero API Keys)
+- App Service uses **system-assigned managed identity**
+- No API keys stored anywhere (not in config, not in Key Vault needed for this demo)
+- If foundry-demo-ai is demoted to Azure OpenAI Service, key rotation would be required (use Key Vault)
+
+### Private Endpoint Benefits
+- **Network Isolation:** Foundry endpoint is unreachable from the internet
+- **Private DNS:** Custom domain resolves to private IP inside VNet only
+- **Compliance:** Network traffic never traverses the public internet
+- **Auditability:** Private endpoint connections appear in Azure logs
+
+### Disabling Public Access
+- Phase 2 sets `public_network_access = false` on foundry-demo-ai
+- Breaks all public DNS resolution and IP-based access
+- Only way to reach the service is via the private endpoint in the VNet
 
 ---
 
 ## Project Structure
 
 ```
-.
+ms-foundry-pe-demo/
+├── README.md                          # This file
 ├── src/
-│   ├── Program.cs                 # Minimal API configuration
-│   ├── OpenAIService.cs           # Azure OpenAI SDK integration
-│   ├── DiagnosticsService.cs      # Network diagnostics & DNS resolution
-│   ├── wwwroot/
-│   │   ├── index.html             # Dark-themed web UI
-│   │   ├── css/style.css          # Styling
-│   │   └── js/app.js              # Client-side logic
-│   └── azure-openai-demo.csproj   # Project file
+│   ├── Program.cs                     # .NET 8 minimal API with embedded HTML
+│   ├── appsettings.json               # Endpoint + DeploymentName config
+│   ├── *.csproj                       # Project file
+│   └── obj/bin/                       # Build artifacts
 ├── docs/
-│   ├── demo-walkthrough.md        # Portal configuration guide
-│   └── network-evidence.md        # Network diagnostics reference
-├── README.md                       # This file
-└── LICENSE                         # MIT License
+│   ├── demo-walkthrough.md            # Step-by-step portal walkthrough
+│   ├── network-evidence.md            # Network diagnostics & evidence
+│   └── diagrams/                      # Architecture diagrams
+├── scripts/
+│   ├── 01-deploy-public-access.sh     # Phase 1: Deploy + enable public
+│   ├── 02-enable-private-access.sh    # Phase 2: VNet + private endpoint
+│   └── deploy-app-service.sh          # Helper: Deploy app code to App Service
+├── .azure/                            # Azure deployment config (from azd)
+├── .github/                           # GitHub workflows & Squad orchestration
+├── .squad/                            # Squad team state (append-only)
+└── .gitignore                         # Git ignore rules
 ```
+
+---
+
+## Local Development
+
+### Build
+
+```bash
+cd src
+dotnet build
+```
+
+### Run
+
+```bash
+# Must have az login active
+dotnet run
+# Open http://localhost:5000/
+```
+
+### Test Endpoints
+
+```bash
+# Diagnostics
+curl http://localhost:5000/api/diagnostics | jq
+
+# Chat (requires public access + az login)
+curl "http://localhost:5000/api/ask?prompt=What%20is%202%2B2%3F"
+```
+
+---
+
+## Clean Up
+
+To delete all demo resources:
+
+```bash
+az group delete -n rg-foundry-demo --yes
+```
+
+---
+
+## Resources
+
+- [Azure AI Foundry](https://azure.microsoft.com/en-us/products/ai-services/foundry/)
+- [Private Endpoints for Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/how-to/manage-identity)
+- [VNet Integration in App Service](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration)
+- [DefaultAzureCredential (Azure Identity SDK)](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential)
 
 ---
 
 ## License
 
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+MIT — See [LICENSE](./LICENSE) for details.
 
 ---
 
-## Support & Questions
+## Contributing
 
-For questions or issues with this demo:
-1. Check [docs/network-evidence.md](docs/network-evidence.md) for troubleshooting
-2. Review the [Full Walkthrough](docs/demo-walkthrough.md)
-3. Open an issue on GitHub
+This is a demo repository maintained by the Azure AI team. For bugs or feedback, please open an issue.
 
 ---
 
-**Demo Created:** 2026 | **Last Updated:** May 2026
+**Demo Version:** 2.0 (Private Endpoint Phase)  
+**Last Updated:** May 5, 2025

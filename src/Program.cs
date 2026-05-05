@@ -1,9 +1,8 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
-using System.Text.Json;
-using Azure;
 using Azure.AI.OpenAI;
+using Azure.Identity;
 using OpenAI.Chat;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -57,14 +56,14 @@ app.MapGet("/api/ask", async (string? prompt) =>
 
     var endpoint = app.Configuration["AzureOpenAI:Endpoint"] ?? "";
     var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-4o-mini";
-    var apiKey = app.Configuration["AzureOpenAI:ApiKey"] ?? "";
 
-    if (string.IsNullOrEmpty(endpoint) || string.IsNullOrEmpty(apiKey))
-        return Results.Json(new { error = "AzureOpenAI configuration is missing" }, statusCode: 500);
+    if (string.IsNullOrEmpty(endpoint))
+        return Results.Json(new { error = "AzureOpenAI:Endpoint configuration is missing" }, statusCode: 500);
 
     try
     {
-        var client = new AzureOpenAIClient(new Uri(endpoint), new AzureKeyCredential(apiKey));
+        var credential = new DefaultAzureCredential();
+        var client = new AzureOpenAIClient(new Uri(endpoint), credential);
         var chatClient = client.GetChatClient(deploymentName);
 
         var sw = Stopwatch.StartNew();
