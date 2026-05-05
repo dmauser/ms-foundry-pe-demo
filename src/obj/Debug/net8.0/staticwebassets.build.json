@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "EnzJTXOPTWlt79YsIj6YFnAJt6kCSkZIWjobBVf3OD8=",
+  "Source": "ms-foundry-pe-demo",
+  "BasePath": "_content/ms-foundry-pe-demo",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
