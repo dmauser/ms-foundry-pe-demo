@@ -132,7 +132,7 @@ if ($RgExists -eq "true") {
 
 Log-Step "Step 2: Create Azure AI Foundry Resource (AIServices)"
 
-$FoundryExists = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup -ErrorAction SilentlyContinue 2>$null
+$FoundryExists = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup --query name -o tsv 2>$null
 if ($FoundryExists) {
     Log-Warning "Foundry resource '$FoundryName' already exists. Skipping creation."
     $FoundryId = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup --query id -o tsv
@@ -144,7 +144,8 @@ if ($FoundryExists) {
         --kind AIServices `
         --sku $FoundrySku `
         --location $Location `
-        --custom-domain $FoundryName
+        --custom-domain $FoundryName `
+        --yes
     Assert-AzSuccess "AI Foundry resource creation"
 
     $FoundryId = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup --query id -o tsv
@@ -251,7 +252,7 @@ if ($AppExists) {
         --name $AppServiceName `
         --resource-group $ResourceGroup `
         --plan $AppServicePlan `
-        --runtime "DOTNET|8.0"
+        --runtime "DOTNETCORE:8.0"
     Assert-AzSuccess "Web App creation"
     Log-Success "Web App created"
 }
