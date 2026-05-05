@@ -25,6 +25,35 @@ This repository showcases the architectural transition from public to private en
 
 ## Architecture
 
+### Visual Diagrams
+
+**For a detailed visual walkthrough, see [`docs/architecture.drawio`](docs/architecture.drawio)** — open in [draw.io](https://draw.io) to see both public and private endpoint phases with Azure icons.
+
+```mermaid
+graph TB
+    subgraph PublicPhase["🟡 PHASE 1: Public Access"]
+        direction TB
+        User1["🌐 User/Laptop"] -->|HTTPS public| AppSvc1["App Service<br/>azurewebsites.net"]
+        AppSvc1 -->|public IP| Internet1["☁️ Public Internet"]
+        Internet1 -->|public IP| Foundry1["🟢 Azure AI Foundry<br/>Public Endpoint ENABLED"]
+    end
+    
+    subgraph PrivatePhase["🔒 PHASE 2: Private Endpoint"]
+        direction TB
+        User2["🌐 User/Laptop<br/>❌ BLOCKED"] -.->|✗ cannot reach| AppSvc2["App Service<br/>azurewebsites.net"]
+        AppSvc2 -->|VNet Integration<br/>Private IP 10.0.1.x| VNet["Virtual Network<br/>10.0.0.0/16"]
+        VNet -->|Private Route| PrivateEP["🔐 Private Endpoint<br/>10.0.2.x"]
+        PrivateEP -->|Managed Link| Foundry2["🔒 Azure AI Foundry<br/>Public Endpoint DISABLED"]
+        VNet -->|Private DNS<br/>privatelink.cognitiveservices.azure.com| DNS["Private DNS Zone"]
+        DNS -.->|resolves to 10.0.2.x| PrivateEP
+    end
+    
+    style PublicPhase fill:#FFFFCC
+    style PrivatePhase fill:#CCFFCC
+    style Foundry1 fill:#FFCCCC
+    style Foundry2 fill:#CCFFFF
+```
+
 ### Phase 1: Public Access (Before)
 ```
 ┌──────────┐                 ┌────────────────────────────────────┐

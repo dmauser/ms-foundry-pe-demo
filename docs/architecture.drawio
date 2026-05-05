@@ -1,0 +1,222 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" modified="2026-05-05T19:08:51.000Z" agent="Mozilla/5.0" version="21.6.8" etag="xyz123" pages="2">
+  <diagram id="page1" name="Before (Public)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" background="ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title-public" value="Phase 1: Public Access" style="text;html=1;fontSize=24;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="300" y="20" width="600" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Internet/User -->
+        <mxCell id="internet" value="🌐 Internet / User" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#E8F4F8;strokeColor=#0078D4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="120" width="150" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service (Public facing) -->
+        <mxCell id="appservice-public" value="App Service&#10;foundry-demo-app&#10;(Public: azurewebsites.net)&#10;🌐 Accessible" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#B4C7E7;strokeColor=#4472C4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="350" y="110" width="200" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Public Internet Connection -->
+        <mxCell id="arrow-user-appservice" edge="1" parent="1" source="internet" target="appservice-public">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="sourcePoint" />
+            <mxPoint as="targetPoint" />
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-arrow1" value="HTTPS (Public)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#FF0000;" connectable="0" vertex="1" parent="arrow-user-appservice">
+          <mxGeometry x="0.5" y="-15" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Azure Cloud Container -->
+        <mxCell id="cloud-public" value="Azure Cloud" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#F0F0F0;strokeColor=#808080;strokeWidth=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="280" width="900" height="460" as="geometry" />
+        </mxCell>
+        
+        <!-- VNet -->
+        <mxCell id="vnet-public" value="VNet (10.0.0.0/16)&#10;foundry-demo-vnet" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#E7E6E6;strokeColor=#595959;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="320" y="330" width="800" height="380" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service Subnet -->
+        <mxCell id="app-subnet-public" value="Subnet: app-service-subnet&#10;(10.0.1.0/24)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="350" y="360" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service in VNet -->
+        <mxCell id="appservice-vnet-public" value="App Service (in VNet)&#10;Private IP: 10.0.1.x" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#D4EFFD;strokeColor=#0078D4;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="375" width="220" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Foundry Subnet -->
+        <mxCell id="foundry-subnet-public" value="Subnet: foundry-subnet&#10;(10.0.2.0/24)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="360" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Azure AI Foundry (Public) -->
+        <mxCell id="foundry-public" value="Azure AI Foundry&#10;foundry-demo-ai&#10;🌐 Public Endpoint&#10;ENABLED" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#FFCCCC;strokeColor=#FF0000;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="750" y="500" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Public Internet Path -->
+        <mxCell id="arrow-public-path" edge="1" parent="1" source="appservice-vnet-public" target="foundry-public">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="475" y="450" />
+              <mxPoint x="540" y="450" />
+              <mxPoint x="860" y="450" />
+            </Array>
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-public" value="Public Internet Route" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#FF0000;fontStyle=1;" connectable="0" vertex="1" parent="arrow-public-path">
+          <mxGeometry x="0.5" y="-10" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Access Legend -->
+        <mxCell id="legend-public" value="✅ Laptop can access Foundry (public IP)&#10;✅ App Service can access Foundry (public IP)&#10;🟢 Badge shows: PUBLIC" style="text;html=1;fontSize=10;align=left;verticalAlign=top;fillColor=#FFFFCC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="610" width="800" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="page2" name="After (Private Endpoint)">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1200" pageHeight="800" background="ffffff" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Title -->
+        <mxCell id="title-private" value="Phase 2: Private Endpoint Access" style="text;html=1;fontSize=24;fontStyle=1;align=center;verticalAlign=top;" vertex="1" parent="1">
+          <mxGeometry x="250" y="20" width="700" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Internet/User (Blocked) -->
+        <mxCell id="internet-blocked" value="🌐 Internet / User&#10;(❌ BLOCKED)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fillColor=#FFCCCC;strokeColor=#FF0000;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="50" y="120" width="150" height="70" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service (Public facing) -->
+        <mxCell id="appservice-private" value="App Service&#10;foundry-demo-app&#10;(Public: azurewebsites.net)&#10;🌐 Accessible" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#B4C7E7;strokeColor=#4472C4;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="350" y="110" width="200" height="90" as="geometry" />
+        </mxCell>
+        
+        <!-- Blocked Connection -->
+        <mxCell id="arrow-user-blocked" edge="1" parent="1" source="internet-blocked" target="appservice-private">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint as="sourcePoint" />
+            <mxPoint as="targetPoint" />
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-blocked-arrow" value="❌ Public blocked" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=10;fontColor=#FF0000;fontStyle=1;" connectable="0" vertex="1" parent="arrow-user-blocked">
+          <mxGeometry x="0.5" y="-15" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Azure Cloud Container -->
+        <mxCell id="cloud-private" value="Azure Cloud" style="rounded=1;whiteSpace=wrap;html=1;fontSize=12;fontStyle=1;fillColor=#F0F0F0;strokeColor=#808080;strokeWidth=2;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="280" y="280" width="900" height="480" as="geometry" />
+        </mxCell>
+        
+        <!-- VNet -->
+        <mxCell id="vnet-private" value="VNet (10.0.0.0/16)&#10;foundry-demo-vnet" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#E7E6E6;strokeColor=#595959;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="320" y="330" width="800" height="400" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service Subnet -->
+        <mxCell id="app-subnet-private" value="Subnet: app-service-subnet&#10;(10.0.1.0/24)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="350" y="360" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- App Service in VNet -->
+        <mxCell id="appservice-vnet-private" value="App Service (VNet Integration)&#10;Private IP: 10.0.1.x" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#D4EFFD;strokeColor=#0078D4;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="365" y="375" width="220" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Foundry Subnet -->
+        <mxCell id="foundry-subnet-private" value="Subnet: foundry-subnet&#10;(10.0.2.0/24)" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#FFF2CC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="650" y="360" width="250" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Private Endpoint -->
+        <mxCell id="private-endpoint" value="Private Endpoint&#10;10.0.2.x" style="rounded=1;whiteSpace=wrap;html=1;fontSize=10;fillColor=#C6E0B4;strokeColor=#70AD47;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="665" y="375" width="220" height="50" as="geometry" />
+        </mxCell>
+        
+        <!-- Azure AI Foundry (Private) -->
+        <mxCell id="foundry-private" value="Azure AI Foundry&#10;foundry-demo-ai&#10;🔒 Private Only&#10;Public DISABLED" style="rounded=1;whiteSpace=wrap;html=1;fontSize=11;fillColor=#C6EFCE;strokeColor=#00B050;strokeWidth=2;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="750" y="500" width="220" height="80" as="geometry" />
+        </mxCell>
+        
+        <!-- Private DNS Zone -->
+        <mxCell id="dns-zone" value="Private DNS Zone&#10;privatelink.cognitiveservices.azure.com&#10;A record → 10.0.2.x" style="rounded=1;whiteSpace=wrap;html=1;fontSize=9;fillColor=#FDE8D8;strokeColor=#E2EFDA;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="400" y="510" width="300" height="60" as="geometry" />
+        </mxCell>
+        
+        <!-- VNet Integration Path -->
+        <mxCell id="arrow-vnet-path" edge="1" parent="1" source="appservice-vnet-private" target="private-endpoint">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="475" y="410" />
+              <mxPoint x="540" y="410" />
+              <mxPoint x="775" y="410" />
+            </Array>
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-vnet" value="Private Route (RFC1918)" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#00B050;fontStyle=1;" connectable="0" vertex="1" parent="arrow-vnet-path">
+          <mxGeometry x="0.5" y="-10" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Private Endpoint to Foundry -->
+        <mxCell id="arrow-pe-foundry" edge="1" parent="1" source="private-endpoint" target="foundry-private">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="775" y="450" />
+              <mxPoint x="860" y="450" />
+            </Array>
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-pe" value="Managed Link" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=9;fontColor=#00B050;" connectable="0" vertex="1" parent="arrow-pe-foundry">
+          <mxGeometry x="0.5" y="-10" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- DNS Resolution Arrow -->
+        <mxCell id="arrow-dns" edge="1" parent="1" source="appservice-vnet-private" target="dns-zone">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="420" y="450" />
+            </Array>
+          </mxGeometry>
+          <mxEdgeStyle>
+            <mxMarker type="arrow" />
+          </mxEdgeStyle>
+        </mxCell>
+        <mxCell id="label-dns" value="DNS Lookup" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];fontSize=8;fontColor=#666666;" connectable="0" vertex="1" parent="arrow-dns">
+          <mxGeometry x="0.5" y="-10" relative="1" as="geometry" />
+        </mxCell>
+        
+        <!-- Access Legend -->
+        <mxCell id="legend-private" value="❌ Laptop CANNOT access Foundry (blocked, can&#39;t route to private IP)&#10;✅ App Service CAN access Foundry (private IP → private endpoint)&#10;🟢 Badge shows: PRIVATE" style="text;html=1;fontSize=10;align=left;verticalAlign=top;fillColor=#FFFFCC;strokeColor=#D6B656;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="330" y="620" width="800" height="70" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
