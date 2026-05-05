@@ -45,44 +45,6 @@ graph LR
     end
 ```
 
-### Phase 1: Public Access (Before)
-```
-┌──────────┐                 ┌────────────────────────────────────┐
-│  Laptop  │                │   Azure Cloud                       │
-│  .NET    │──────https────▶│  ┌──────────────────────────────┐  │
-│  App     │   (public)     │  │  Azure AI Foundry            │  │
-└──────────┘                │  │  🟢 Public Endpoint          │  │
-                            │  │  gpt-4o-mini                 │  │
-┌──────────┐                │  │  ✓ Works from anywhere       │  │
-│  App     │                │  └──────────────────────────────┘  │
-│ Service  │───────https───▶│         ✓ Fully Accessible        │
-│  .NET    │   (public)     │                                      │
-└──────────┘                └────────────────────────────────────┘
-```
-
-### Phase 2: Private Access (After)
-```
-┌──────────┐                 ┌──────────────────────────────────────┐
-│  Laptop  │                │   Azure Cloud                        │
-│  .NET    │──────https────▶│  ┌────────────────────────────────┐ │
-│  App     │   (public)     │  │  Azure AI Foundry              │ │
-│  ❌ FAILS│   ✗ BLOCKED    │  │  🔴 Public Access Disabled    │ │
-└──────────┘                │  │  gpt-4o-mini                   │ │
-                            │  └────────────────────────────────┘ │
-┌─────────────────────┐    │  ┌───────────────────────────────┐  │
-│  App Service        │    │  │   VNet (10.0.0.0/16)          │  │
-│  ┌─────────────────┐│    │  │  ┌───────────────────────────┐ │  │
-│  │  .NET App       ││    │  │  │ Private Endpoint           │ │  │
-│  │  (private IP)   ││    │  │  │ 10.0.1.10                  │ │  │
-│  │  🟢 WORKS       ││───▶│  │  └───────────────────────────┘ │  │
-│  │  (private)      ││    │  │         ▲                       │  │
-│  └─────────────────┘│    │  │         │ (private)             │  │
-│  └─────────────────┘    │  │  Private DNS: foundry-demo-ai  │  │
-└─────────────────────┘    │  │  .cognitiveservices.azure.com  │  │
-                            │  └───────────────────────────────┘  │
-                            └──────────────────────────────────────┘
-```
-
 ---
 
 ## Demo Flow
