@@ -29,6 +29,8 @@ This repository showcases the architectural transition from public to private en
 
 **For a detailed visual walkthrough, see [`docs/architecture.drawio`](docs/architecture.drawio)** — open in [draw.io](https://draw.io) to see both public and private endpoint phases with Azure icons.
 
+🔗 **[Open in draw.io](https://app.diagrams.net/?url=https://raw.githubusercontent.com/dmauser/ms-foundry-pe-demo/master/docs/architecture.drawio)** (click to view interactive diagram)
+
 ```mermaid
 graph TB
     subgraph PublicPhase["🟡 PHASE 1: Public Access"]
