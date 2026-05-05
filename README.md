@@ -142,11 +142,18 @@ The app will start on `http://localhost:5000`. Open http://localhost:5000/ in yo
 
 ## Azure Deployment
 
+> **Windows users:** PowerShell equivalents (`.ps1`) are available for all deployment scripts. Both bash and PowerShell scripts share the same `scripts/.deploy-suffix` file, so you can use either interchangeably.
+
 ### Phase 1: Deploy Public Access
 
 ```bash
-# From the repo root
+# From the repo root (Linux/macOS)
 scripts/01-deploy-public-access.sh
+```
+
+```powershell
+# From the repo root (Windows PowerShell)
+pwsh scripts/01-deploy-public-access.ps1
 ```
 
 > **Note:** All resource names include a randomly generated 5-character suffix (e.g., `foundry-demo-ai-a3x9k`) to allow multiple users to deploy the demo in the same subscription without naming conflicts. The suffix is stored in `scripts/.deploy-suffix` and reused by both scripts.
@@ -172,8 +179,13 @@ scripts/01-deploy-public-access.sh
 ### Phase 2: Enable Private Access
 
 ```bash
-# From the repo root
+# From the repo root (Linux/macOS)
 scripts/02-enable-private-access.sh
+```
+
+```powershell
+# From the repo root (Windows PowerShell)
+pwsh scripts/02-enable-private-access.ps1
 ```
 
 **What this does:**
