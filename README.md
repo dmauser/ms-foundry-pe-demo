@@ -10,6 +10,12 @@ This repository showcases the architectural transition from public to private en
 
 ---
 
+### 📑 Navigation
+
+[Quick Facts](#quick-facts) · [Architecture](#architecture) · [Demo Flow](#demo-flow) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [Azure Deployment](#azure-deployment) · [Validation](#validation-results) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Local Dev](#local-development) · [Clean Up](#clean-up) · [Resources](#resources)
+
+---
+
 ## Quick Facts
 
 | Aspect | Value |
