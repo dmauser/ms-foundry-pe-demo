@@ -20,23 +20,38 @@
 set -e  # Exit on error
 
 # ============================================================================
+# RANDOM SUFFIX - Ensures globally unique resource names so multiple users
+# can deploy this demo without naming conflicts. Generated once and reused
+# across all resources in this deployment.
+# ============================================================================
+
+SUFFIX_FILE="$(dirname "$0")/.deploy-suffix"
+if [ -f "$SUFFIX_FILE" ]; then
+    SUFFIX=$(cat "$SUFFIX_FILE")
+else
+    SUFFIX=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 5)
+    echo "$SUFFIX" > "$SUFFIX_FILE"
+fi
+echo "Using deployment suffix: $SUFFIX"
+
+# ============================================================================
 # VARIABLES - Customize these for your environment
 # ============================================================================
 
-RESOURCE_GROUP="rg-foundry-demo"
+RESOURCE_GROUP="rg-foundry-demo-${SUFFIX}"
 LOCATION="centralus"
 
 # Azure AI Foundry (AIServices)
-FOUNDRY_NAME="foundry-demo-ai"
+FOUNDRY_NAME="foundry-demo-ai-${SUFFIX}"
 FOUNDRY_SKU="S0"
 
 # App Service
-APP_SERVICE_NAME="foundry-demo-app"
-APP_SERVICE_PLAN="foundry-demo-plan"
+APP_SERVICE_NAME="foundry-demo-app-${SUFFIX}"
+APP_SERVICE_PLAN="foundry-demo-plan-${SUFFIX}"
 APP_SERVICE_SKU="B1"
 
 # Network
-VNET_NAME="foundry-demo-vnet"
+VNET_NAME="foundry-demo-vnet-${SUFFIX}"
 VNET_CIDR="10.0.0.0/16"
 APP_SERVICE_SUBNET="app-service-subnet"
 APP_SERVICE_SUBNET_CIDR="10.0.1.0/24"
@@ -44,7 +59,7 @@ FOUNDRY_SUBNET="foundry-subnet"
 FOUNDRY_SUBNET_CIDR="10.0.2.0/24"
 
 # Managed Identity
-IDENTITY_NAME="foundry-demo-identity"
+IDENTITY_NAME="foundry-demo-identity-${SUFFIX}"
 
 # Model deployment
 MODEL_NAME="gpt-4o-mini"
