@@ -65,8 +65,9 @@ IDENTITY_NAME="foundry-demo-identity-${SUFFIX}"
 MODEL_NAME="gpt-4o-mini"
 MODEL_VERSION="2"
 
-# Application
-APP_DIR="."  # Root directory of .NET application
+# Application - resolve src/ relative to the script location
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/src"
 BUILD_DIR="bin/Release/net8.0/publish"
 
 # ============================================================================
@@ -279,15 +280,17 @@ log_step "Step 8: Build and Deploy Application"
 
 log_info "Building .NET application (Release)..."
 if [ -d "$APP_DIR" ]; then
-    cd "$APP_DIR"
-    dotnet publish -c Release -o "$BUILD_DIR" --no-restore
+    pushd "$APP_DIR" > /dev/null
+    dotnet publish -c Release -o "$BUILD_DIR"
     log_success "Build completed"
     
     log_info "Creating deployment package..."
-    PACKAGE_FILE="foundry-demo-app.zip"
-    cd "$BUILD_DIR"
-    zip -r "../../../../$PACKAGE_FILE" . -q
-    cd "../../../../"
+    PACKAGE_FILE="$SCRIPT_DIR/foundry-demo-app.zip"
+    PUBLISH_PATH="$(cd "$BUILD_DIR" && pwd)"
+    rm -f "$PACKAGE_FILE"
+    cd "$PUBLISH_PATH"
+    zip -r "$PACKAGE_FILE" . -q
+    popd > /dev/null
     log_success "Package created: $PACKAGE_FILE"
     
     log_info "Deploying to App Service..."

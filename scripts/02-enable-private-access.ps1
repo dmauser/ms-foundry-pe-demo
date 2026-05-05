@@ -51,7 +51,15 @@ function Log-Warning {
 
 function Log-Error {
     param([string]$Message)
-    Write-Host "  ✗ $Message"
+    Write-Host "  ✗ $Message" -ForegroundColor Red
+}
+
+function Assert-AzSuccess {
+    param([string]$StepDescription)
+    if ($LASTEXITCODE -ne 0) {
+        Log-Error "$StepDescription failed (exit code: $LASTEXITCODE). Stopping."
+        exit 1
+    }
 }
 
 # ============================================================================
@@ -125,6 +133,7 @@ az network vnet subnet update `
     --resource-group $ResourceGroup `
     --vnet-name $VnetName `
     --disable-private-endpoint-network-policies true
+Assert-AzSuccess "Subnet network policy update"
 
 Log-Success "Private endpoint network policies disabled on $FoundrySubnet"
 
@@ -153,6 +162,7 @@ if ($PeExists) {
         --private-connection-resource-id $FoundryId `
         --group-id account `
         --connection-name $PrivateEndpointConnection
+    Assert-AzSuccess "Private endpoint creation"
 
     Log-Success "Private endpoint created"
 }
@@ -171,6 +181,7 @@ if ($DnsZoneExists) {
     az network private-dns zone create `
         --resource-group $ResourceGroup `
         --name $PrivateDnsZone
+    Assert-AzSuccess "Private DNS zone creation"
 
     Log-Success "Private DNS zone created"
 }
@@ -196,6 +207,7 @@ if ($DnsLinkExists) {
         --name $PrivateDnsLink `
         --virtual-network $VnetName `
         --registration-enabled false
+    Assert-AzSuccess "DNS zone VNet link creation"
 
     Log-Success "DNS zone linked to VNet"
 }
@@ -221,6 +233,7 @@ if ($ZoneGroupExists) {
         --name "default" `
         --private-dns-zone $PrivateDnsZone `
         --zone-name "cognitiveservices"
+    Assert-AzSuccess "DNS zone group creation"
 
     Log-Success "DNS zone group created (A record will be auto-registered)"
 }
@@ -236,6 +249,7 @@ az cognitiveservices account update `
     --name $FoundryName `
     --resource-group $ResourceGroup `
     --public-network-access Disabled
+Assert-AzSuccess "Disable public network access"
 
 Log-Success "Public network access DISABLED on Foundry resource"
 

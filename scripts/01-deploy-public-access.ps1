@@ -44,6 +44,19 @@ function Log-Warning {
     Write-Host "  ⚠ $Message"
 }
 
+function Log-Error {
+    param([string]$Message)
+    Write-Host "  ❌ $Message" -ForegroundColor Red
+}
+
+function Assert-AzSuccess {
+    param([string]$StepDescription)
+    if ($LASTEXITCODE -ne 0) {
+        Log-Error "$StepDescription failed (exit code: $LASTEXITCODE). Stopping."
+        exit 1
+    }
+}
+
 # ============================================================================
 # RANDOM SUFFIX - Ensures globally unique resource names so multiple users
 # can deploy this demo without naming conflicts. Generated once and reused
@@ -91,8 +104,8 @@ $IdentityName = "foundry-demo-identity-$Suffix"
 $ModelName = "gpt-4o-mini"
 $ModelVersion = "2"
 
-# Application
-$AppDir = "."
+# Application - resolve src/ relative to the script location
+$AppDir = Join-Path (Split-Path $PSScriptRoot -Parent) "src"
 $BuildDir = "bin/Release/net8.0/publish"
 
 # ============================================================================
@@ -109,6 +122,7 @@ if ($RgExists -eq "true") {
     az group create `
         --name $ResourceGroup `
         --location $Location
+    Assert-AzSuccess "Resource group creation"
     Log-Success "Resource group created"
 }
 
@@ -131,6 +145,7 @@ if ($FoundryExists) {
         --sku $FoundrySku `
         --location $Location `
         --custom-domain $FoundryName
+    Assert-AzSuccess "AI Foundry resource creation"
 
     $FoundryId = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup --query id -o tsv
     Log-Success "Foundry resource created: $FoundryId"
@@ -173,6 +188,7 @@ if ($VnetExists) {
         --name $VnetName `
         --resource-group $ResourceGroup `
         --address-prefix $VnetCidr
+    Assert-AzSuccess "VNet creation"
     Log-Success "VNet created"
 }
 
@@ -187,6 +203,7 @@ if ($SubnetExists) {
         --resource-group $ResourceGroup `
         --vnet-name $VnetName `
         --address-prefix $AppServiceSubnetCidr
+    Assert-AzSuccess "App Service subnet creation"
     Log-Success "App Service subnet created"
 }
 
@@ -201,6 +218,7 @@ if ($SubnetExists) {
         --resource-group $ResourceGroup `
         --vnet-name $VnetName `
         --address-prefix $FoundrySubnetCidr
+    Assert-AzSuccess "Foundry subnet creation"
     Log-Success "Foundry subnet created"
 }
 
@@ -220,6 +238,7 @@ if ($PlanExists) {
         --resource-group $ResourceGroup `
         --sku B1 `
         --is-linux
+    Assert-AzSuccess "App Service Plan creation"
     Log-Success "App Service Plan created"
 }
 
@@ -233,6 +252,7 @@ if ($AppExists) {
         --resource-group $ResourceGroup `
         --plan $AppServicePlan `
         --runtime "DOTNET|8.0"
+    Assert-AzSuccess "Web App creation"
     Log-Success "Web App created"
 }
 
@@ -247,6 +267,7 @@ az webapp identity assign `
     --name $AppServiceName `
     --resource-group $ResourceGroup `
     --identities [system]
+Assert-AzSuccess "Managed Identity assignment"
 
 $PrincipalId = az webapp identity show `
     --name $AppServiceName `
@@ -284,6 +305,7 @@ az webapp config appsettings set `
         "AzureAiFoundry__Endpoint=$FoundryEndpoint" `
         "AzureAiFoundry__DeploymentName=$ModelName" `
         "AzureAiFoundry__UseSystemAssignedIdentity=true"
+Assert-AzSuccess "App settings configuration"
 
 Log-Success "App settings configured"
 
@@ -296,12 +318,14 @@ Log-Step "Step 8: Build and Deploy Application"
 Log-Info "Building .NET application (Release)..."
 if (Test-Path $AppDir) {
     Push-Location $AppDir
-    dotnet publish -c Release -o $BuildDir --no-restore
+    dotnet publish -c Release -o $BuildDir
+    Assert-AzSuccess "dotnet publish"
     Log-Success "Build completed"
 
     Log-Info "Creating deployment package..."
-    $PackageFile = "foundry-demo-app.zip"
+    $PackageFile = Join-Path $PSScriptRoot "foundry-demo-app.zip"
     $PublishPath = Resolve-Path $BuildDir
+    if (Test-Path $PackageFile) { Remove-Item $PackageFile -Force }
     Compress-Archive -Path (Join-Path $PublishPath "*") -DestinationPath $PackageFile -Force
     Pop-Location
     Log-Success "Package created: $PackageFile"
@@ -311,6 +335,7 @@ if (Test-Path $AppDir) {
         --name $AppServiceName `
         --resource-group $ResourceGroup `
         --src $PackageFile
+    Assert-AzSuccess "App deployment"
     Log-Success "Application deployed"
 
     Remove-Item -Path $PackageFile -Force -ErrorAction SilentlyContinue
