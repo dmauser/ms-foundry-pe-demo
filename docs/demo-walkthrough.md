@@ -148,7 +148,7 @@ For an interactive visual breakdown of the architecture, see:
 - **Azure Subscription** with Contributor role
 - **Local Environment:**
   - Azure CLI (az)
-  - Bash shell (WSL2, Git Bash, or native Linux/macOS)
+  - Bash shell (WSL2, Git Bash, or native Linux/macOS) **or PowerShell**
   - .NET 8 SDK (for local testing)
 - **Quota Check:**
   - Check Azure quotas: `az vm list-usage --location centralus -o table`
@@ -156,6 +156,7 @@ For an interactive visual breakdown of the architecture, see:
 
 ### Phase 1: Deploy Public Access (Automated)
 
+**Bash:**
 ```bash
 # Clone repo
 git clone https://github.com/dmauser/ms-foundry-pe-demo.git
@@ -167,6 +168,20 @@ az account set --subscription "YOUR_SUBSCRIPTION_ID"
 
 # Run automated deployment script
 bash scripts/01-deploy-public-access.sh
+```
+
+**PowerShell:**
+```powershell
+# Clone repo
+git clone https://github.com/dmauser/ms-foundry-pe-demo.git
+cd ms-foundry-pe-demo
+
+# Log in to Azure
+az login
+az account set --subscription "YOUR_SUBSCRIPTION_ID"
+
+# Run automated deployment script
+.\scripts\01-deploy-public-access.ps1
 ```
 
 **What the script does:**
@@ -212,9 +227,16 @@ open "https://foundry-demo-app-a3x9k.azurewebsites.net"
 
 ### Phase 2: Enable Private Endpoint Access (Automated)
 
+**Bash:**
 ```bash
 # Run the second deployment script
 bash scripts/02-enable-private-access.sh
+```
+
+**PowerShell:**
+```powershell
+# Run the second deployment script
+.\scripts\02-enable-private-access.ps1
 ```
 
 **What the script does:**
@@ -370,7 +392,7 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
-| **App shows 🔴 PUBLIC after Phase 2** | VNet Integration not enabled or script failed | Re-run `bash scripts/02-enable-private-access.sh` |
+| **App shows 🔴 PUBLIC after Phase 2** | VNet Integration not enabled or script failed | Re-run `bash scripts/02-enable-private-access.sh` or `.\scripts\02-enable-private-access.ps1` |
 | **Managed Identity auth fails (401 Unauthorized)** | Managed Identity not assigned or lacks RBAC role | Verify: App Service → Identity → Check system-assigned identity; Role: "Cognitive Services User" on AI Foundry |
 | **DNS still resolves to public IP from Kudu** | Private DNS Zone not linked to VNet | Manual fix: Go to Private DNS Zone → Virtual Network Links → Verify VNet is linked |
 | **Chat returns 502 Bad Gateway** | Private Endpoint not created or VNet route broken | Run Phase 2 script again; verify subnet delegation not conflicting |
@@ -437,7 +459,7 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 > 
 > All of this is done securely using Managed Identity."
 
-[Run: `bash scripts/02-enable-private-access.sh`]
+[Run: `bash scripts/02-enable-private-access.sh` or `.\scripts\02-enable-private-access.ps1`]
 
 > "Watch what happens to the diagnostics badge as the private endpoint comes online..."
 
@@ -470,9 +492,11 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 ## 8. Quick Reference
 
 ### Deployment
-- **Phase 1:** `bash scripts/01-deploy-public-access.sh`
-- **Phase 2:** `bash scripts/02-enable-private-access.sh`
-- **Suffix:** Auto-generated and stored in `scripts/.deploy-suffix`
+- **Phase 1 (Bash):** `bash scripts/01-deploy-public-access.sh`
+- **Phase 1 (PowerShell):** `.\scripts\01-deploy-public-access.ps1`
+- **Phase 2 (Bash):** `bash scripts/02-enable-private-access.sh`
+- **Phase 2 (PowerShell):** `.\scripts\02-enable-private-access.ps1`
+- **Suffix:** Auto-generated and stored in `scripts/.deploy-suffix` (shared by both scripts)
 
 ### Resource Naming (example with suffix `a3x9k`)
 - Resource Group: `rg-foundry-demo-a3x9k`
