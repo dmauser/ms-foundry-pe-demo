@@ -25,14 +25,8 @@ This repository showcases the architectural transition from public to private en
 
 ## Architecture
 
-### Visual Diagrams
-
-**For a detailed visual walkthrough, see [`docs/architecture.drawio`](docs/architecture.drawio)** — open in [draw.io](https://draw.io) to see both public and private endpoint phases with Azure icons.
-
-🔗 **[Open in draw.io](https://app.diagrams.net/?url=https://raw.githubusercontent.com/dmauser/ms-foundry-pe-demo/master/docs/architecture.drawio)** (click to view interactive diagram)
-
 ```mermaid
-graph TB
+graph LR
     subgraph PublicPhase["🟡 PHASE 1: Public Access"]
         direction TB
         User1["🌐 User/Laptop"] -->|HTTPS public| AppSvc1["App Service<br/>azurewebsites.net"]
@@ -49,11 +43,6 @@ graph TB
         VNet -->|Private DNS<br/>privatelink.cognitiveservices.azure.com| DNS["Private DNS Zone"]
         DNS -.->|resolves to 10.0.2.x| PrivateEP
     end
-    
-    style PublicPhase fill:#FFFFCC
-    style PrivatePhase fill:#CCFFCC
-    style Foundry1 fill:#FFCCCC
-    style Foundry2 fill:#CCFFFF
 ```
 
 ### Phase 1: Public Access (Before)
