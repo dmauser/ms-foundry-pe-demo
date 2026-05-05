@@ -88,9 +88,10 @@ graph LR
 - **Local Development:**
   - .NET 8 SDK or later
   - Azure CLI (az)
-  - Bash shell (WSL2, Git Bash, or native Linux/macOS)
+  - PowerShell 7+ (`pwsh`) **or** Bash (WSL2, Git Bash, or native Linux/macOS)
 - **Permissions:**
   - Contributor role on the resource group
+  - Cognitive Services Contributor (for model deployments)
 
 ### Windows Prerequisites Installation (winget)
 
@@ -105,6 +106,9 @@ winget install Microsoft.DotNet.SDK.8
 
 # Install Azure CLI
 winget install Microsoft.AzureCLI
+
+# Install PowerShell 7 (if you don't have pwsh)
+winget install Microsoft.PowerShell
 ```
 
 > **Note:** After installing these tools, restart your terminal before proceeding.
@@ -142,6 +146,8 @@ The app will start on `http://localhost:5000`. Open http://localhost:5000/ in yo
 
 ## Azure Deployment
 
+> **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/` directory). The wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. This eliminates az CLI quirks with runtime names, deprecated flags, and pipe characters on Windows.
+>
 > **Windows users:** PowerShell equivalents (`.ps1`) are available for all deployment scripts. Both bash and PowerShell scripts share the same `scripts/.deploy-suffix` file, so you can use either interchangeably.
 
 ### Phase 1: Deploy Public Access
@@ -160,15 +166,18 @@ pwsh scripts/01-deploy-public-access.ps1
 
 **What this does:**
 - Creates resource group: `rg-foundry-demo-<suffix>`
-- Deploys Azure AI Foundry: `foundry-demo-ai-<suffix>` (gpt-4o-mini, GlobalStandard)
-- Deploys App Service Plan: `foundry-demo-plan-<suffix>` (Linux, P1V2)
-- Deploys App Service: `foundry-demo-app-<suffix>`
-- Creates VNet: `foundry-demo-vnet-<suffix>` (10.0.0.0/16)
-- Configures App Settings on the App Service:
-  - `AzureAiFoundry__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/`
-  - `AzureAiFoundry__DeploymentName = gpt-4o-mini`
-- Assigns managed identity to App Service
-- **Leaves public access enabled** on the Foundry resource
+- Deploys all infrastructure via Bicep (`infra/01-public-access.bicep`):
+  - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-4o-mini, GlobalStandard)
+  - App Service Plan: `foundry-demo-plan-<suffix>` (Linux, B1)
+  - App Service: `foundry-demo-app-<suffix>` with VNet Integration
+  - VNet: `foundry-demo-vnet-<suffix>` (10.0.0.0/16) with two subnets
+  - RBAC: Cognitive Services User role for App Service managed identity
+- Builds and zip-deploys the .NET 8 app
+- App Settings configured automatically:
+  - `AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/`
+  - `AzureOpenAI__DeploymentName = gpt-4o-mini`
+  - `AzureOpenAI__UseSystemAssignedIdentity = true`
+- **Leaves public access enabled** on the AI Services resource
 
 **After Phase 1:**
 - Visit `https://foundry-demo-app-<suffix>.azurewebsites.net`
@@ -189,11 +198,12 @@ pwsh scripts/02-enable-private-access.ps1
 ```
 
 **What this does:**
-- Enables VNet Integration on App Service
-- Creates Private Endpoint in `foundry-subnet` (10.0.2.0/24)
-- Configures Private DNS Zone for `foundry-demo-ai-<suffix>.cognitiveservices.azure.com`
-- **Disables public access** on the Foundry resource
-- Updates Private DNS A record to point to private endpoint IP
+- Deploys private infrastructure via Bicep (`infra/02-private-access.bicep`):
+  - Private Endpoint in `foundry-subnet` (10.0.2.0/24)
+  - Private DNS Zone: `privatelink.cognitiveservices.azure.com`
+  - VNet Link for DNS resolution
+  - DNS Zone Group for automatic A record registration
+- Disables public access on the AI Services resource via `az resource update`
 
 **After Phase 2:**
 - Visit `https://foundry-demo-app-<suffix>.azurewebsites.net`
@@ -337,22 +347,24 @@ On error (network, auth, model):
 ```
 ms-foundry-pe-demo/
 ├── README.md                          # This file
+├── infra/
+│   ├── 01-public-access.bicep         # Phase 1: VNet, AI Services, App Service, RBAC
+│   └── 02-private-access.bicep        # Phase 2: Private Endpoint, DNS Zone
 ├── src/
 │   ├── Program.cs                     # .NET 8 minimal API with embedded HTML
 │   ├── appsettings.json               # Endpoint + DeploymentName config
-│   ├── *.csproj                       # Project file
-│   └── obj/bin/                       # Build artifacts
+│   └── *.csproj                       # Project file
 ├── docs/
 │   ├── demo-walkthrough.md            # Step-by-step portal walkthrough
 │   ├── network-evidence.md            # Network diagnostics & evidence
 │   └── diagrams/                      # Architecture diagrams
 ├── scripts/
-│   ├── 01-deploy-public-access.sh     # Phase 1: Deploy + enable public
-│   ├── 02-enable-private-access.sh    # Phase 2: VNet + private endpoint
-│   └── deploy-app-service.sh          # Helper: Deploy app code to App Service
-├── .azure/                            # Azure deployment config (from azd)
-├── .github/                           # GitHub workflows & Squad orchestration
-├── .squad/                            # Squad team state (append-only)
+│   ├── 01-deploy-public-access.sh     # Phase 1: Bash wrapper
+│   ├── 01-deploy-public-access.ps1    # Phase 1: PowerShell wrapper
+│   ├── 02-enable-private-access.sh    # Phase 2: Bash wrapper
+│   ├── 02-enable-private-access.ps1   # Phase 2: PowerShell wrapper
+│   └── .deploy-suffix                 # Generated suffix (gitignored)
+├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
 ```
 
@@ -392,7 +404,15 @@ curl "http://localhost:5000/api/ask?prompt=What%20is%202%2B2%3F"
 To delete all demo resources:
 
 ```bash
-az group delete -n rg-foundry-demo --yes
+# Read suffix from file
+SUFFIX=$(cat scripts/.deploy-suffix)
+az group delete -n "rg-foundry-demo-$SUFFIX" --yes --no-wait
+```
+
+```powershell
+# PowerShell
+$Suffix = (Get-Content scripts/.deploy-suffix -Raw).Trim()
+az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
 ```
 
 ---
@@ -418,5 +438,5 @@ This is a demo repository maintained by the Azure AI team. For bugs or feedback,
 
 ---
 
-**Demo Version:** 2.0 (Private Endpoint Phase)  
-**Last Updated:** May 5, 2025
+**Demo Version:** 3.0 (Bicep Infrastructure-as-Code)  
+**Last Updated:** May 2025
