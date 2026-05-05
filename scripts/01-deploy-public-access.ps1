@@ -7,6 +7,22 @@
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
+# --- Azure Authentication Check ---
+Write-Host "`n════════════════════════════════════════════════════════════════"
+Write-Host "🔐 Verifying Azure authentication..."
+$AccountJson = az account show 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Not logged in to Azure CLI. Run: az login" -ForegroundColor Red
+    exit 1
+}
+$AccountInfo = $AccountJson | ConvertFrom-Json
+Write-Host "  ✓ Logged in as : $($AccountInfo.user.name)"
+Write-Host "  📋 Subscription : $($AccountInfo.name)"
+Write-Host "  🆔 Subscription ID: $($AccountInfo.id)"
+Write-Host "════════════════════════════════════════════════════════════════"
+Write-Host "⏳ Proceeding in 5 seconds... Press Ctrl+C to abort." -ForegroundColor Yellow
+Start-Sleep -Seconds 5
+
 # --- Suffix (generate once, reuse) ---
 $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
 if (Test-Path $SuffixFile) {
