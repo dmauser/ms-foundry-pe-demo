@@ -92,6 +92,23 @@ graph LR
 - **Permissions:**
   - Contributor role on the resource group
 
+### Windows Prerequisites Installation (winget)
+
+If you don't have the required tools installed, use **winget** on Windows:
+
+```powershell
+# Install Git
+winget install Git.Git
+
+# Install .NET 8 SDK
+winget install Microsoft.DotNet.SDK.8
+
+# Install Azure CLI
+winget install Microsoft.AzureCLI
+```
+
+> **Note:** After installing these tools, restart your terminal before proceeding.
+
 ---
 
 ## Quick Start (Local Development)
