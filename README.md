@@ -27,13 +27,6 @@ This repository showcases the architectural transition from public to private en
 
 ```mermaid
 graph LR
-    subgraph PublicPhase["🟡 PHASE 1: Public Access"]
-        direction TB
-        User1["🌐 User/Laptop"] -->|HTTPS public| AppSvc1["App Service<br/>azurewebsites.net"]
-        AppSvc1 -->|public IP| Internet1["☁️ Public Internet"]
-        Internet1 -->|public IP| Foundry1["🟢 Azure AI Foundry<br/>Public Endpoint ENABLED"]
-    end
-    
     subgraph PrivatePhase["🔒 PHASE 2: Private Endpoint"]
         direction TB
         User2["🌐 User/Laptop<br/>❌ BLOCKED"] -.->|✗ cannot reach| AppSvc2["App Service<br/>azurewebsites.net"]
@@ -42,6 +35,13 @@ graph LR
         PrivateEP -->|Managed Link| Foundry2["🔒 Azure AI Foundry<br/>Public Endpoint DISABLED"]
         VNet -->|Private DNS<br/>privatelink.cognitiveservices.azure.com| DNS["Private DNS Zone"]
         DNS -.->|resolves to 10.0.2.x| PrivateEP
+    end
+
+    subgraph PublicPhase["🟡 PHASE 1: Public Access"]
+        direction TB
+        User1["🌐 User/Laptop"] -->|HTTPS public| AppSvc1["App Service<br/>azurewebsites.net"]
+        AppSvc1 -->|public IP| Internet1["☁️ Public Internet"]
+        Internet1 -->|public IP| Foundry1["🟢 Azure AI Foundry<br/>Public Endpoint ENABLED"]
     end
 ```
 
