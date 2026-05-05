@@ -28,6 +28,12 @@ az deployment group create \
     --parameters suffix="$SUFFIX" location="$LOCATION" \
     --output none
 
+# --- Disable public network access ---
+echo -e "\n▶ Disabling public network access on AI Services..."
+AI_SERVICES_NAME="foundry-demo-ai-$SUFFIX"
+AI_RESOURCE_ID=$(az cognitiveservices account show --name "$AI_SERVICES_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
+az resource update --ids "$AI_RESOURCE_ID" --set properties.publicNetworkAccess=Disabled --output none
+
 # --- Done ---
 echo ""
 echo "════════════════════════════════════════════════════════════════"

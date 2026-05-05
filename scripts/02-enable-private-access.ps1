@@ -28,6 +28,13 @@ az deployment group create `
     --output none
 if ($LASTEXITCODE -ne 0) { throw "Bicep deployment failed" }
 
+# --- Disable public network access ---
+Write-Host "`n▶ Disabling public network access on AI Services..."
+$AiServicesName = "foundry-demo-ai-$Suffix"
+$AiResourceId = (az cognitiveservices account show --name $AiServicesName --resource-group $ResourceGroup --query id -o tsv)
+az resource update --ids $AiResourceId --set properties.publicNetworkAccess=Disabled --output none
+if ($LASTEXITCODE -ne 0) { throw "Failed to disable public access" }
+
 # --- Done ---
 Write-Host "`n════════════════════════════════════════════════════════════════"
 Write-Host "✓ Phase 2 complete! Private access enabled."

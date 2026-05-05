@@ -41,17 +41,22 @@ Write-Host "  ✓ Infrastructure deployed successfully"
 # --- Step 3: Build .NET app ---
 Write-Host "`n▶ Building .NET application..."
 $SrcDir = Join-Path $RepoRoot "src"
-$PublishDir = Join-Path $SrcDir "publish"
+$PublishDir = Join-Path $RepoRoot ".publish"
+if (Test-Path $PublishDir) { Remove-Item $PublishDir -Recurse -Force }
 dotnet publish $SrcDir -c Release -o $PublishDir --nologo -v quiet
 if ($LASTEXITCODE -ne 0) { throw "dotnet publish failed" }
 
 # --- Step 4: Zip deploy ---
 Write-Host "`n▶ Deploying application to $WebAppName..."
-$ZipFile = Join-Path $SrcDir "app.zip"
+$ZipFile = Join-Path $RepoRoot ".publish.zip"
 if (Test-Path $ZipFile) { Remove-Item $ZipFile -Force }
 Compress-Archive -Path "$PublishDir\*" -DestinationPath $ZipFile -Force
 az webapp deploy --resource-group $ResourceGroup --name $WebAppName --src-path $ZipFile --type zip --output none
 if ($LASTEXITCODE -ne 0) { throw "App deployment failed" }
+
+# --- Cleanup build artifacts ---
+Remove-Item $PublishDir -Recurse -Force -ErrorAction SilentlyContinue
+Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 
 # --- Done ---
 Write-Host "`n════════════════════════════════════════════════════════════════"

@@ -39,15 +39,19 @@ echo "  ✓ Infrastructure deployed successfully"
 # --- Step 3: Build .NET app ---
 echo -e "\n▶ Building .NET application..."
 SRC_DIR="$REPO_ROOT/src"
-PUBLISH_DIR="$SRC_DIR/publish"
+PUBLISH_DIR="$REPO_ROOT/.publish"
+rm -rf "$PUBLISH_DIR"
 dotnet publish "$SRC_DIR" -c Release -o "$PUBLISH_DIR" --nologo -v quiet
 
 # --- Step 4: Zip deploy ---
 echo -e "\n▶ Deploying application to $WEB_APP_NAME..."
-ZIP_FILE="$SRC_DIR/app.zip"
+ZIP_FILE="$REPO_ROOT/.publish.zip"
 rm -f "$ZIP_FILE"
 (cd "$PUBLISH_DIR" && zip -qr "$ZIP_FILE" .)
 az webapp deploy --resource-group "$RESOURCE_GROUP" --name "$WEB_APP_NAME" --src-path "$ZIP_FILE" --type zip --output none
+
+# --- Cleanup build artifacts ---
+rm -rf "$PUBLISH_DIR" "$ZIP_FILE"
 
 # --- Done ---
 echo ""

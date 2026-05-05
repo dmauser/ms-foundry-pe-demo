@@ -14,10 +14,6 @@ var privateEndpointName = 'pe-${aiServicesName}'
 var dnsZoneName = 'privatelink.cognitiveservices.azure.com'
 
 // --- References to existing resources ---
-resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
-  name: aiServicesName
-}
-
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
   name: vnetName
 }
@@ -25,6 +21,10 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' existing = {
 resource foundrySubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' existing = {
   parent: vnet
   name: 'foundry-subnet'
+}
+
+resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
+  name: aiServicesName
 }
 
 // --- Private Endpoint ---
@@ -79,20 +79,6 @@ resource dnsZoneGroup 'Microsoft.Network/privateEndpoints/privateDnsZoneGroups@2
         }
       }
     ]
-  }
-}
-
-// --- Disable Public Access on AI Services ---
-resource aiServicesUpdate 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
-  name: aiServicesName
-  location: location
-  kind: 'AIServices'
-  sku: {
-    name: 'S0'
-  }
-  properties: {
-    customSubDomainName: aiServicesName
-    publicNetworkAccess: 'Disabled'
   }
 }
 
