@@ -130,8 +130,7 @@ if ($FoundryExists) {
         --kind AIServices `
         --sku $FoundrySku `
         --location $Location `
-        --custom-domain $FoundryName `
-        --public-network-access Enabled
+        --custom-domain $FoundryName
 
     $FoundryId = az cognitiveservices account show --name $FoundryName --resource-group $ResourceGroup --query id -o tsv
     Log-Success "Foundry resource created: $FoundryId"

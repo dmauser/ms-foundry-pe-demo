@@ -125,8 +125,7 @@ else
         --kind AIServices \
         --sku "$FOUNDRY_SKU" \
         --location "$LOCATION" \
-        --custom-domain "$FOUNDRY_NAME" \
-        --public-network-access Enabled
+        --custom-domain "$FOUNDRY_NAME"
     
     FOUNDRY_ID=$(az cognitiveservices account show --name "$FOUNDRY_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
     log_success "Foundry resource created: $FOUNDRY_ID"
