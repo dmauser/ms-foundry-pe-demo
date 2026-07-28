@@ -8,8 +8,11 @@ using OpenAI.Chat;
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
+// --- Scenario flag: "PrivateEndpoint" (default) or "NSP" ---
+static string Scenario(IConfiguration cfg) => cfg["Demo:Scenario"] ?? "PrivateEndpoint";
+
 // --- HTML UI ---
-app.MapGet("/", () => Results.Content(Html.Index, "text/html"));
+app.MapGet("/", () => Results.Content(Html.Render(Scenario(app.Configuration)), "text/html"));
 
 // --- Diagnostics API ---
 app.MapGet("/api/diagnostics", async () =>
@@ -39,6 +42,7 @@ app.MapGet("/api/diagnostics", async () =>
 
     return Results.Json(new
     {
+        scenario = Scenario(app.Configuration),
         hostname,
         resolvedIPs,
         isPrivate,
@@ -108,7 +112,10 @@ static bool IsRfc1918(string ip)
 // --- Embedded HTML ---
 static class Html
 {
-public const string Index = """
+    public static string Render(string scenario) =>
+        Template.Replace("__SCENARIO__", scenario == "NSP" ? "NSP" : "PrivateEndpoint");
+
+private const string Template = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -144,8 +151,8 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 </style>
 </head>
 <body>
-<h1>🔒 Azure OpenAI — Private Endpoint Demo</h1>
-<p class="subtitle">Proving private network connectivity to Azure OpenAI via VNet Integration + Private Endpoint</p>
+<h1 id="pageTitle">🔒 Azure OpenAI — Private Endpoint Demo</h1>
+<p class="subtitle" id="pageSubtitle">Proving private network connectivity to Azure OpenAI via VNet Integration + Private Endpoint</p>
 <div class="container">
 
 <!-- Network Diagnostics Panel -->
@@ -154,11 +161,12 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <div class="info-grid">
     <span class="label">Hostname:</span><span class="value" id="dnsHost">—</span>
     <span class="label">Resolved IPs:</span><span class="value" id="dnsIPs">—</span>
-    <span class="label">Private (RFC1918):</span><span class="value" id="dnsPrivate">—</span>
-    <span class="label">WEBSITE_PRIVATE_IP:</span><span class="value" id="vnetIP">—</span>
-    <span class="label">VNet Integrated:</span><span class="value" id="vnetStatus">—</span>
+    <span class="label" id="lblPrivate">Private (RFC1918):</span><span class="value" id="dnsPrivate">—</span>
+    <span class="label" id="lblVnetIP">WEBSITE_PRIVATE_IP:</span><span class="value" id="vnetIP">—</span>
+    <span class="label" id="lblVnet">VNet Integrated:</span><span class="value" id="vnetStatus">—</span>
     <span class="label">Checked at:</span><span class="value" id="dnsTime">—</span>
   </div>
+  <p class="chat-meta" id="scenarioNote"></p>
   <br/>
   <button class="btn" id="btnDiag" onclick="runDiagnostics()">🔄 Run Diagnostics</button>
 </div>
@@ -177,6 +185,20 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 </div>
 
 <script>
+const SCENARIO="__SCENARIO__";
+const IS_NSP=SCENARIO==="NSP";
+
+function applyScenario(){
+  if(!IS_NSP)return;
+  document.title="Azure OpenAI — Network Security Perimeter Demo";
+  document.getElementById('pageTitle').textContent='🛡️ Azure OpenAI — Network Security Perimeter Demo';
+  document.getElementById('pageSubtitle').textContent='Protecting Azure OpenAI with a Network Security Perimeter + Managed Identity — no VNet Integration required';
+  document.getElementById('lblPrivate').textContent='Endpoint DNS:';
+  document.getElementById('lblVnetIP').textContent='Access control:';
+  document.getElementById('lblVnet').textContent='VNet Integrated:';
+  document.getElementById('scenarioNote').innerHTML='Endpoint stays public in DNS by design — the boundary is at the <strong>identity layer</strong>. Use the Chat Test below as the allow/deny proof: from the App Service (managed identity) it succeeds; from a laptop (user token) it is blocked by the perimeter.';
+}
+
 async function runDiagnostics(){
   const btn=document.getElementById('btnDiag');
   const badge=document.getElementById('netBadge');
@@ -188,16 +210,24 @@ async function runDiagnostics(){
     const d=await r.json();
     document.getElementById('dnsHost').textContent=d.hostname||'—';
     document.getElementById('dnsIPs').textContent=(d.resolvedIPs||[]).join(', ')||'—';
-    document.getElementById('dnsPrivate').textContent=d.isPrivate?'Yes ✓':'No ✗';
-    document.getElementById('vnetIP').textContent=d.websitePrivateIP||'(not set — not VNet integrated)';
-    document.getElementById('vnetStatus').textContent=d.vnetIntegrated?'Yes ✓':'No ✗';
     document.getElementById('dnsTime').textContent=d.timestamp?new Date(d.timestamp).toLocaleString():'—';
-    if(d.isPrivate){
+    if(IS_NSP){
+      document.getElementById('dnsPrivate').textContent='Public (by design)';
+      document.getElementById('vnetIP').textContent='Managed Identity (NSP subscription inbound rule)';
+      document.getElementById('vnetStatus').textContent=d.vnetIntegrated?'Yes':'Not required ✓';
       badge.className='badge badge-private';
-      badge.textContent='🟢 PRIVATE';
+      badge.textContent='🛡️ NSP PERIMETER';
     }else{
-      badge.className='badge badge-public';
-      badge.textContent='🔴 PUBLIC';
+      document.getElementById('dnsPrivate').textContent=d.isPrivate?'Yes ✓':'No ✗';
+      document.getElementById('vnetIP').textContent=d.websitePrivateIP||'(not set — not VNet integrated)';
+      document.getElementById('vnetStatus').textContent=d.vnetIntegrated?'Yes ✓':'No ✗';
+      if(d.isPrivate){
+        badge.className='badge badge-private';
+        badge.textContent='🟢 PRIVATE';
+      }else{
+        badge.className='badge badge-public';
+        badge.textContent='🔴 PUBLIC';
+      }
     }
   }catch(e){
     badge.className='badge badge-public';
@@ -233,6 +263,7 @@ async function sendChat(){
 }
 
 // Auto-run diagnostics on load
+applyScenario();
 runDiagnostics();
 </script>
 </body>
