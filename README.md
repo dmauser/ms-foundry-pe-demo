@@ -373,6 +373,65 @@ pwsh scripts/04-enforce-nsp.ps1
 - **Subscription-wide rule:** the inbound rule allows *any* managed identity in the subscription — including Scenario 1's App Service MI. That is acceptable for this demo; the teaching point is identity-gating vs. the laptop's user token. Tighten with a narrower rule (e.g. specific identities/PaaS resources) for production.
 - **Enforced mode:** applying `Enforced` immediately blocks non-allowed callers. Use `Learning` mode first if you want to observe traffic before enforcing.
 
+### Validate NSP enforcement with diagnostic logs (Scenario 2)
+
+The perimeter's decisions are only trustworthy if you can *see* them. Step B (`infra/04-nsp-enforce.bicep`) now provisions:
+
+- a **Log Analytics workspace** — `foundry-demo-law-<suffix>`
+- a **diagnostic setting** on the NSP (`nsp-access-logs`) streaming the `allLogs` category group with **resource-specific (Dedicated)** destination, so every access evaluation lands in the **`NSPAccessLogs`** table.
+
+Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** or **`Denied`** — that is your proof the perimeter is enforcing identity, not just present.
+
+> **Note on `Dedicated`:** ARM occasionally drops `logAnalyticsDestinationType` on the first `diagnosticSettings` write. If a query returns nothing and `NSPAccessLogs` doesn't exist, confirm the destination type is `Dedicated` (see step 5).
+
+**Step-by-step**
+
+1. **Deploy Step B** (creates the workspace + diagnostic setting):
+   ```bash
+   ./scripts/04-enforce-nsp.sh        # or scripts\04-enforce-nsp.ps1
+   ```
+
+2. **Generate ALLOWED traffic** — open the Scenario 2 app (`foundry-demo-nsp-app-<suffix>`) and run a **Chat Test**. The App Service managed identity is permitted by the inbound rule → expect a successful reply. Each call is logged as `Approved`.
+
+3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity):
+   ```bash
+   ENDPOINT="https://foundry-demo-ai-<suffix>.openai.azure.com"   # your Foundry endpoint
+   TOKEN=$(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)
+   curl -s -o /dev/null -w "%{http_code}\n" \
+     -H "Authorization: Bearer $TOKEN" \
+     "$ENDPOINT/openai/models?api-version=2024-10-01"
+   # Expect: 403 (blocked by the perimeter — you are not a managed identity)
+   ```
+
+4. **Wait for ingestion** — allow **~5–10 minutes** for the evaluations to reach the workspace.
+
+5. **Query the proof** — in the Azure Portal open the workspace → **Logs**, or run it from the CLI:
+   ```bash
+   WORKSPACE_ID=$(az monitor log-analytics workspace show \
+     -g rg-foundry-demo-<suffix> -n foundry-demo-law-<suffix> \
+     --query customerId -o tsv)
+
+   az monitor log-analytics query -w "$WORKSPACE_ID" --analytics-query '
+     NSPAccessLogs
+     | where TimeGenerated > ago(1h)
+     | where ServiceFqdn has "foundry-demo-ai"
+     | project TimeGenerated, ResultAction, ResultDirection, TrafficType, MatchedRule, SourceIpAddress, ResultDescription
+     | order by TimeGenerated desc' -o table
+   ```
+
+   Expected results:
+
+   | Caller | `ResultAction` | Why |
+   |--------|----------------|-----|
+   | App Service (managed identity) | **`Approved`** | Allowed by the subscription inbound rule |
+   | Laptop (`az login` user token) | **`Denied`** | Not a managed identity → blocked by the perimeter |
+
+**Caveats for logging**
+
+- **Ingestion latency:** log rows can take 5–10 minutes (occasionally longer) to appear — an empty result immediately after traffic is normal.
+- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you likely have no logged traffic yet (or the destination type isn't `Dedicated`).
+- **Workspace placement:** for this demo the workspace lives *outside* the perimeter (simple and fully functional). For production you may add the workspace to the same NSP so the telemetry path is protected too.
+
 ---
 
 ## Scenario Comparison
@@ -598,5 +657,5 @@ This is a demo repository maintained by the Azure AI team. For bugs or feedback,
 
 ---
 
-**Demo Version:** 4.0 (adds Scenario 2 — Network Security Perimeter)  
+**Demo Version:** 4.1 (Scenario 2 — Network Security Perimeter + NSP diagnostic-log validation)  
 **Last Updated:** July 2026

@@ -48,6 +48,10 @@ resource nspWebApp 'Microsoft.Web/sites@2023-12-01' = {
           value: deploymentName
         }
         {
+          name: 'AzureOpenAI__ResourceId'
+          value: aiServices.id
+        }
+        {
           name: 'AzureOpenAI__UseSystemAssignedIdentity'
           value: 'true'
         }
@@ -72,6 +76,20 @@ resource roleAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
   properties: {
     principalId: nspWebApp.identity.principalId
     roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', cognitiveServicesUserRoleId)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// --- Role Assignment: Reader (lets the app read Foundry's public/NSP config) ---
+@description('Reader role definition ID')
+var readerRoleId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+
+resource readerAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(aiServices.id, nspWebApp.id, readerRoleId)
+  scope: aiServices
+  properties: {
+    principalId: nspWebApp.identity.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', readerRoleId)
     principalType: 'ServicePrincipal'
   }
 }
