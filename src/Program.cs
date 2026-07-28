@@ -52,6 +52,79 @@ app.MapGet("/api/diagnostics", async () =>
     });
 });
 
+// --- Foundry configuration status API (control-plane: public vs restricted) ---
+app.MapGet("/api/foundry-status", async () =>
+{
+    var resourceId = app.Configuration["AzureOpenAI:ResourceId"] ?? "";
+    if (string.IsNullOrWhiteSpace(resourceId))
+        return Results.Json(new { status = "Unknown", error = "AzureOpenAI:ResourceId is not configured", publicNetworkAccess = "Unknown" }, statusCode: 500);
+
+    try
+    {
+        var credential = new DefaultAzureCredential();
+        var token = (await credential.GetTokenAsync(
+            new Azure.Core.TokenRequestContext(["https://management.azure.com/.default"]))).Token;
+
+        using var http = new HttpClient();
+        http.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+
+        // 1) Account properties -> publicNetworkAccess
+        var publicNetworkAccess = "Unknown";
+        var acctResp = await http.GetAsync($"https://management.azure.com{resourceId}?api-version=2024-10-01");
+        if (acctResp.StatusCode == HttpStatusCode.Forbidden)
+            return Results.Json(new { status = "Unknown", error = "Managed identity lacks Reader on the Foundry resource (control-plane read denied).", publicNetworkAccess = "Unknown" });
+        if (acctResp.IsSuccessStatusCode)
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(await acctResp.Content.ReadAsStringAsync());
+            if (doc.RootElement.TryGetProperty("properties", out var props) &&
+                props.TryGetProperty("publicNetworkAccess", out var pna))
+                publicNetworkAccess = pna.GetString() ?? "Unknown";
+        }
+
+        // 2) Network Security Perimeter configurations -> accessMode / provisioningState
+        var nspAssociated = false;
+        var nspMode = "None";
+        var nspProvisioningState = "";
+        var nspResp = await http.GetAsync($"https://management.azure.com{resourceId}/networkSecurityPerimeterConfigurations?api-version=2024-10-01");
+        if (nspResp.IsSuccessStatusCode)
+        {
+            using var doc = System.Text.Json.JsonDocument.Parse(await nspResp.Content.ReadAsStringAsync());
+            if (doc.RootElement.TryGetProperty("value", out var vals) && vals.GetArrayLength() > 0)
+            {
+                nspAssociated = true;
+                var p = vals[0];
+                if (p.TryGetProperty("properties", out var props))
+                {
+                    if (props.TryGetProperty("provisioningState", out var ps)) nspProvisioningState = ps.GetString() ?? "";
+                    if (props.TryGetProperty("resourceAssociation", out var ra) &&
+                        ra.TryGetProperty("accessMode", out var am)) nspMode = am.GetString() ?? "None";
+                }
+            }
+        }
+
+        var nspEnforced = nspAssociated && string.Equals(nspMode, "Enforced", StringComparison.OrdinalIgnoreCase);
+        var restricted = nspEnforced
+            || string.Equals(publicNetworkAccess, "Disabled", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(publicNetworkAccess, "SecuredByPerimeter", StringComparison.OrdinalIgnoreCase);
+
+        return Results.Json(new
+        {
+            status = restricted ? "Restricted" : "Public",
+            publicNetworkAccess,
+            nspAssociated,
+            nspMode,
+            nspProvisioningState,
+            restricted,
+            timestamp = DateTime.UtcNow
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Json(new { status = "Unknown", error = ex.Message }, statusCode: 502);
+    }
+});
+
 // --- Chat API ---
 app.MapGet("/api/ask", async (string? prompt) =>
 {
@@ -59,7 +132,7 @@ app.MapGet("/api/ask", async (string? prompt) =>
         return Results.BadRequest(new { error = "prompt query parameter is required" });
 
     var endpoint = app.Configuration["AzureOpenAI:Endpoint"] ?? "";
-    var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-4o-mini";
+    var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-5-mini";
 
     if (string.IsNullOrEmpty(endpoint))
         return Results.Json(new { error = "AzureOpenAI:Endpoint configuration is missing" }, statusCode: 500);
@@ -121,7 +194,7 @@ private const string Template = """
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>Azure OpenAI — Private Endpoint Demo</title>
+<title>Scenario 1 — Azure OpenAI Private Endpoint Demo</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Segoe UI',system-ui,sans-serif;background:#1a1a2e;color:#e0e0e0;min-height:100vh;padding:2rem}
@@ -151,7 +224,7 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 </style>
 </head>
 <body>
-<h1 id="pageTitle">🔒 Azure OpenAI — Private Endpoint Demo</h1>
+<h1 id="pageTitle">🔒 Scenario 1 — Azure OpenAI Private Endpoint Demo</h1>
 <p class="subtitle" id="pageSubtitle">Proving private network connectivity to Azure OpenAI via VNet Integration + Private Endpoint</p>
 <div class="container">
 
@@ -169,6 +242,21 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <p class="chat-meta" id="scenarioNote"></p>
   <br/>
   <button class="btn" id="btnDiag" onclick="runDiagnostics()">🔄 Run Diagnostics</button>
+</div>
+
+<!-- Foundry Configuration Panel -->
+<div class="panel">
+  <h2>⚙️ Foundry Configuration <span id="foundryBadge" class="badge badge-unknown">⏳ CHECKING</span></h2>
+  <div class="info-grid">
+    <span class="label">Public network access:</span><span class="value" id="fPublicAccess">—</span>
+    <span class="label">NSP perimeter:</span><span class="value" id="fNsp">—</span>
+    <span class="label">NSP access mode:</span><span class="value" id="fNspMode">—</span>
+    <span class="label">Provisioning state:</span><span class="value" id="fNspState">—</span>
+    <span class="label">Checked at:</span><span class="value" id="fTime">—</span>
+  </div>
+  <p class="chat-meta" id="foundryNote"></p>
+  <br/>
+  <button class="btn" id="btnFoundry" onclick="runFoundryStatus()">🔄 Check Foundry</button>
 </div>
 
 <!-- Chat Test Panel -->
@@ -190,8 +278,8 @@ const IS_NSP=SCENARIO==="NSP";
 
 function applyScenario(){
   if(!IS_NSP)return;
-  document.title="Azure OpenAI — Network Security Perimeter Demo";
-  document.getElementById('pageTitle').textContent='🛡️ Azure OpenAI — Network Security Perimeter Demo';
+  document.title="Scenario 2 — Azure OpenAI Network Security Perimeter Demo";
+  document.getElementById('pageTitle').textContent='🛡️ Scenario 2 — Azure OpenAI Network Security Perimeter Demo';
   document.getElementById('pageSubtitle').textContent='Protecting Azure OpenAI with a Network Security Perimeter + Managed Identity — no VNet Integration required';
   document.getElementById('lblPrivate').textContent='Endpoint DNS:';
   document.getElementById('lblVnetIP').textContent='Access control:';
@@ -237,6 +325,43 @@ async function runDiagnostics(){
   btn.disabled=false;
 }
 
+async function runFoundryStatus(){
+  const btn=document.getElementById('btnFoundry');
+  const badge=document.getElementById('foundryBadge');
+  btn.disabled=true;
+  badge.className='badge badge-unknown';
+  badge.innerHTML='<span class="spinner"></span> CHECKING';
+  try{
+    const r=await fetch('/api/foundry-status');
+    const d=await r.json();
+    document.getElementById('fPublicAccess').textContent=d.publicNetworkAccess||'—';
+    document.getElementById('fNsp').textContent=d.nspAssociated?'Associated':(d.status==='Unknown'?'—':'Not associated');
+    document.getElementById('fNspMode').textContent=(d.nspMode&&d.nspMode!=='None')?d.nspMode:'—';
+    document.getElementById('fNspState').textContent=d.nspProvisioningState||'—';
+    document.getElementById('fTime').textContent=d.timestamp?new Date(d.timestamp).toLocaleString():'—';
+    if(d.status==='Restricted'){
+      badge.className='badge badge-private';
+      badge.textContent='🔒 RESTRICTED';
+      document.getElementById('foundryNote').innerHTML=d.nspAssociated
+        ?'Foundry is protected by a <strong>Network Security Perimeter</strong> ('+d.nspMode+') — only managed identities in the subscription can reach it.'
+        :'Foundry public network access is <strong>'+d.publicNetworkAccess+'</strong> — inbound is restricted.';
+    }else if(d.status==='Public'){
+      badge.className='badge badge-public';
+      badge.textContent='🌐 PUBLIC';
+      document.getElementById('foundryNote').innerHTML='Foundry is reachable from the public internet — no NSP enforcement and public network access is enabled.';
+    }else{
+      badge.className='badge badge-unknown';
+      badge.textContent='❔ UNKNOWN';
+      document.getElementById('foundryNote').innerHTML='<span class="error">'+(d.error||'Could not determine Foundry configuration.')+'</span>';
+    }
+  }catch(e){
+    badge.className='badge badge-unknown';
+    badge.textContent='⚠️ ERROR';
+    document.getElementById('foundryNote').innerHTML='<span class="error">'+e.message+'</span>';
+  }
+  btn.disabled=false;
+}
+
 async function sendChat(){
   const input=document.getElementById('promptInput');
   const resp=document.getElementById('chatResponse');
@@ -265,6 +390,7 @@ async function sendChat(){
 // Auto-run diagnostics on load
 applyScenario();
 runDiagnostics();
+runFoundryStatus();
 </script>
 </body>
 </html>

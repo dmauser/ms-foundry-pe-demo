@@ -26,7 +26,7 @@ Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys
 | Aspect | Value |
 |--------|-------|
 | **Resource Type** | Azure AI Services (AIServices / "Foundry" in Portal) |
-| **Model** | `gpt-4o-mini` (GlobalStandard) |
+| **Model** | `gpt-5-mini` (GlobalStandard) |
 | **Authentication** | Managed Identity (DefaultAzureCredential) |
 | **Region** | `centralus` |
 | **Scenario 1 App** | `https://foundry-demo-app-<suffix>.azurewebsites.net` (VNet integrated) |
@@ -176,7 +176,7 @@ pwsh scripts/01-deploy-public-access.ps1
 **What this does:**
 - Creates resource group: `rg-foundry-demo-<suffix>`
 - Deploys all infrastructure via Bicep (`infra/01-public-access.bicep`):
-  - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-4o-mini, GlobalStandard)
+  - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-5-mini, GlobalStandard)
   - App Service Plan: `foundry-demo-plan-<suffix>` (Linux, B1)
   - App Service: `foundry-demo-app-<suffix>` with VNet Integration
   - VNet: `foundry-demo-vnet-<suffix>` (10.0.0.0/16) with two subnets
@@ -184,7 +184,7 @@ pwsh scripts/01-deploy-public-access.ps1
 - Builds and zip-deploys the .NET 8 app
 - App Settings configured automatically:
   - `AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/`
-  - `AzureOpenAI__DeploymentName = gpt-4o-mini`
+  - `AzureOpenAI__DeploymentName = gpt-5-mini`
   - `AzureOpenAI__UseSystemAssignedIdentity = true`
 - **Leaves public access enabled** on the AI Services resource
 
@@ -305,6 +305,13 @@ graph LR
 > **Prerequisite:** Scenario 2 runs from the **Scenario 1 Phase-1 (public) baseline** — you must have already run `01-deploy-public-access` (it creates the Foundry + App Service Plan and the shared `.deploy-suffix`). You do **not** need Scenario 1 Phase 2 (`02-*`).
 >
 > ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 2 (`04-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 2 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
+>
+> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of `403`). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
+> ```bash
+> az feature registration create --namespace Microsoft.CognitiveServices --name OpenAI.NspPreview
+> az feature registration create --namespace Microsoft.Network --name AllowNSPInPublicPreview
+> ```
+> Registration is usually quick; the script polls until both report `Registered` and then re-registers the `Microsoft.CognitiveServices` / `Microsoft.Network` providers. See [Add an Azure OpenAI service to a network security perimeter](https://learn.microsoft.com/azure/ai-services/openai/how-to/network-security-perimeter).
 
 #### Step A: Deploy the second (NSP) App Service
 
@@ -349,6 +356,8 @@ pwsh scripts/04-enforce-nsp.ps1
 - ❌ Chat **fails** from the laptop (user token is not a managed identity → 403)
 - The endpoint DNS is still public — the block is at the identity layer
 
+> **Note:** data-plane enforcement can take a few minutes to propagate after Step B. If the laptop deny test still returns `200`, wait ~3 minutes and retry.
+
 ### Expected Behavior (Scenario 2)
 
 | Actor | Step A (public, no NSP) | Step B (NSP Enforced) | Why |
@@ -363,6 +372,65 @@ pwsh scripts/04-enforce-nsp.ps1
 - **Region availability / RP registration:** NSP is not available in every region and may require the `Microsoft.Network` NSP feature to be registered on the subscription. `centralus` is expected to work.
 - **Subscription-wide rule:** the inbound rule allows *any* managed identity in the subscription — including Scenario 1's App Service MI. That is acceptable for this demo; the teaching point is identity-gating vs. the laptop's user token. Tighten with a narrower rule (e.g. specific identities/PaaS resources) for production.
 - **Enforced mode:** applying `Enforced` immediately blocks non-allowed callers. Use `Learning` mode first if you want to observe traffic before enforcing.
+
+### Validate NSP enforcement with diagnostic logs (Scenario 2)
+
+The perimeter's decisions are only trustworthy if you can *see* them. Step B (`infra/04-nsp-enforce.bicep`) now provisions:
+
+- a **Log Analytics workspace** — `foundry-demo-law-<suffix>`
+- a **diagnostic setting** on the NSP (`nsp-access-logs`) streaming the `allLogs` category group with **resource-specific (Dedicated)** destination, so every access evaluation lands in the **`NSPAccessLogs`** table.
+
+Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** or **`Denied`** — that is your proof the perimeter is enforcing identity, not just present.
+
+> **Note on `Dedicated`:** ARM occasionally drops `logAnalyticsDestinationType` on the first `diagnosticSettings` write. If a query returns nothing and `NSPAccessLogs` doesn't exist, confirm the destination type is `Dedicated` (see step 5).
+
+**Step-by-step**
+
+1. **Deploy Step B** (creates the workspace + diagnostic setting):
+   ```bash
+   ./scripts/04-enforce-nsp.sh        # or scripts\04-enforce-nsp.ps1
+   ```
+
+2. **Generate ALLOWED traffic** — open the Scenario 2 app (`foundry-demo-nsp-app-<suffix>`) and run a **Chat Test**. The App Service managed identity is permitted by the inbound rule → expect a successful reply. Each call is logged as `Approved`.
+
+3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity):
+   ```bash
+   ENDPOINT="https://foundry-demo-ai-<suffix>.openai.azure.com"   # your Foundry endpoint
+   TOKEN=$(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)
+   curl -s -o /dev/null -w "%{http_code}\n" \
+     -H "Authorization: Bearer $TOKEN" \
+     "$ENDPOINT/openai/models?api-version=2024-10-01"
+   # Expect: 403 (blocked by the perimeter — you are not a managed identity)
+   ```
+
+4. **Wait for ingestion** — allow **~5–10 minutes** for the evaluations to reach the workspace.
+
+5. **Query the proof** — in the Azure Portal open the workspace → **Logs**, or run it from the CLI:
+   ```bash
+   WORKSPACE_ID=$(az monitor log-analytics workspace show \
+     -g rg-foundry-demo-<suffix> -n foundry-demo-law-<suffix> \
+     --query customerId -o tsv)
+
+   az monitor log-analytics query -w "$WORKSPACE_ID" --analytics-query '
+     NSPAccessLogs
+     | where TimeGenerated > ago(1h)
+     | where ServiceFqdn has "foundry-demo-ai"
+     | project TimeGenerated, ResultAction, ResultDirection, TrafficType, MatchedRule, SourceIpAddress, ResultDescription
+     | order by TimeGenerated desc' -o table
+   ```
+
+   Expected results:
+
+   | Caller | `ResultAction` | Why |
+   |--------|----------------|-----|
+   | App Service (managed identity) | **`Approved`** | Allowed by the subscription inbound rule |
+   | Laptop (`az login` user token) | **`Denied`** | Not a managed identity → blocked by the perimeter |
+
+**Caveats for logging**
+
+- **Ingestion latency:** log rows can take 5–10 minutes (occasionally longer) to appear — an empty result immediately after traffic is normal.
+- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you likely have no logged traffic yet (or the destination type isn't `Dedicated`).
+- **Workspace placement:** for this demo the workspace lives *outside* the perimeter (simple and fully functional). For production you may add the workspace to the same NSP so the telemetry path is protected too.
 
 ---
 
@@ -392,7 +460,7 @@ The App Service is configured with these variables (no API key required):
 
 ```
 AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/
-AzureOpenAI__DeploymentName = gpt-4o-mini
+AzureOpenAI__DeploymentName = gpt-5-mini
 Demo__Scenario = PrivateEndpoint   # Scenario 1 default; the NSP app sets this to "NSP"
 ```
 
@@ -437,14 +505,14 @@ Checks network connectivity and returns JSON:
 - **`vnetIntegrated`**: `true` if `WEBSITE_PRIVATE_IP` environment variable is set (indicates VNet Integration)
 
 ### `GET /api/ask?prompt=hello` — Chat API
-Sends prompt to gpt-4o-mini and returns JSON:
+Sends prompt to gpt-5-mini and returns JSON:
 
 ```json
 {
   "prompt": "hello",
   "response": "Hello! How can I help you today?",
   "latencyMs": 456,
-  "model": "gpt-4o-mini",
+  "model": "gpt-5-mini",
   "timestamp": "2025-05-05T16:37:25Z"
 }
 ```
@@ -589,5 +657,5 @@ This is a demo repository maintained by the Azure AI team. For bugs or feedback,
 
 ---
 
-**Demo Version:** 4.0 (adds Scenario 2 — Network Security Perimeter)  
+**Demo Version:** 4.1 (Scenario 2 — Network Security Perimeter + NSP diagnostic-log validation)  
 **Last Updated:** July 2026
