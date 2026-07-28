@@ -1,18 +1,23 @@
-# 🔒 Azure AI Foundry — Private Endpoint Demo
+# 🔒 Azure AI Foundry — Network Security Demo (Private Endpoint & Network Security Perimeter)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-blue)](https://dotnet.microsoft.com/download/dotnet/8.0)
 [![Azure Foundry](https://img.shields.io/badge/Azure-AI%20Foundry-0078D4)](https://azure.microsoft.com/en-us/products/ai-services/foundry/)
 
-**A hands-on demo proving secure private-endpoint access to Azure AI Foundry models using VNet Integration + Managed Identity.**
+**A hands-on demo proving two different ways to secure access to Azure AI Foundry models — with zero API keys.**
 
-This repository showcases the architectural transition from public to private endpoint connectivity, demonstrating how enterprise applications can maintain network isolation while consuming AI services—with **zero API keys**.
+This repository demonstrates two complementary security patterns against the **same** Azure AI Foundry resource:
+
+- **Scenario 1 — Private Endpoint + VNet Integration** *(network-layer isolation)*: the App Service joins a VNet and reaches Foundry over a private endpoint; the public endpoint is disabled and the laptop is blocked because it cannot route to the private IP.
+- **Scenario 2 — Network Security Perimeter (NSP) + Managed Identity** *(identity-layer isolation)*: a second App Service **without** VNet integration reaches Foundry; a Network Security Perimeter locks the resource down so only **managed identities from the subscription** are allowed. The App Service (system-assigned MI) works; the laptop (user `az login` token) is blocked. The endpoint stays public in DNS — the boundary is at the **identity layer**.
+
+Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys anywhere.
 
 ---
 
 ### 📑 Navigation
 
-[Quick Facts](#quick-facts) · [Architecture](#architecture) · [Demo Flow](#demo-flow) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [Azure Deployment](#azure-deployment) · [Validation](#validation-results) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Local Dev](#local-development) · [Clean Up](#clean-up) · [Resources](#resources)
+[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Clean Up](#clean-up) · [Resources](#resources)
 
 ---
 
@@ -24,12 +29,17 @@ This repository showcases the architectural transition from public to private en
 | **Model** | `gpt-4o-mini` (GlobalStandard) |
 | **Authentication** | Managed Identity (DefaultAzureCredential) |
 | **Region** | `centralus` |
-| **Live Demo** | `https://foundry-demo-app-<suffix>.azurewebsites.net` |
-| **Architecture** | .NET 8 minimal API + embedded dark-theme UI |
+| **Scenario 1 App** | `https://foundry-demo-app-<suffix>.azurewebsites.net` (VNet integrated) |
+| **Scenario 2 App** | `https://foundry-demo-nsp-app-<suffix>.azurewebsites.net` (no VNet) |
+| **Architecture** | .NET 8 minimal API + embedded dark-theme UI (single codebase, scenario-aware via `Demo__Scenario`) |
 
 ---
 
-## Architecture
+## Scenario 1 — Private Endpoint + VNet Integration
+
+> **Network-layer isolation.** The App Service joins a VNet; Foundry is reached over a private endpoint; the public endpoint is disabled. The laptop is blocked because it cannot route to the private IP.
+
+### Architecture
 
 ```mermaid
 graph LR
@@ -53,7 +63,7 @@ graph LR
 
 ---
 
-## Demo Flow
+### Demo Flow (Scenario 1)
 
 ### 1. **Phase 1 Deployment** — Everything Works
 - Deploy foundry-demo-ai, App Service, VNet, App Service Plan
@@ -83,8 +93,9 @@ graph LR
 - **Azure Subscription** with enough quota for:
   - Azure AI Services (Foundry)
   - App Service + App Service Plan
-  - Virtual Network + Private Endpoint
-  - Private DNS Zone
+  - Virtual Network + Private Endpoint (Scenario 1)
+  - Private DNS Zone (Scenario 1)
+  - Network Security Perimeter (Scenario 2 — check region availability / RP registration)
 - **Local Development:**
   - .NET 8 SDK or later
   - Azure CLI (az)
@@ -144,11 +155,9 @@ The app will start on `http://localhost:5000`. Open http://localhost:5000/ in yo
 
 ---
 
-## Azure Deployment
+## Scenario 1 — Deploy (Private Endpoint)
 
-> **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/` directory). The wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. This eliminates az CLI quirks with runtime names, deprecated flags, and pipe characters on Windows.
->
-> **Windows users:** PowerShell equivalents (`.ps1`) are available for all deployment scripts. Both bash and PowerShell scripts share the same `scripts/.deploy-suffix` file, so you can use either interchangeably.
+> **Prerequisite:** complete the shared [Prerequisites](#prerequisites) above. Scenario 1 is a two-phase flow: Phase 1 (public baseline) → Phase 2 (private).
 
 ### Phase 1: Deploy Public Access
 
@@ -213,7 +222,9 @@ pwsh scripts/02-enable-private-access.ps1
 
 ---
 
-## Validation Results
+## Scenario 1 — Validation Results
+
+> **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/`). Wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. PowerShell (`.ps1`) equivalents exist for every script and share the same `scripts/.deploy-suffix` file.
 
 ### Expected Behavior
 
@@ -252,6 +263,127 @@ pwsh scripts/02-enable-private-access.ps1
 
 ---
 
+---
+
+## Scenario 2 — Network Security Perimeter + Managed Identity
+
+> **Identity-layer isolation.** A **second** App Service — deliberately **without** VNet integration — calls the **same** Foundry. A Network Security Perimeter (NSP) locks the resource down with an identity-based inbound rule so only **managed identities from the subscription** are allowed. The App Service's system-assigned managed identity is permitted; a laptop using a user `az login` token is blocked. The endpoint keeps its **public DNS name** — the boundary is at the **identity layer**, not the network layer.
+
+### How the identity perimeter works
+
+Scenario 2 uses a `Microsoft.Network/networkSecurityPerimeters` resource with a single **inbound access rule of type _Subscriptions_**. Per Azure NSP semantics, a Subscriptions rule *"allows inbound access authenticated using any managed identity from the subscription."* The Foundry is associated with the perimeter in **`Enforced`** mode:
+
+- ✅ **App Service** (system-assigned MI in the subscription) → **allowed**
+- ❌ **Laptop** (user token from `az login`, not a managed identity) → **blocked (403)**
+
+No VNet, no private endpoint, no private DNS zone required.
+
+### Architecture
+
+```mermaid
+graph LR
+    subgraph Enforced["🛡️ NSP ENFORCED (identity perimeter)"]
+        direction TB
+        User["🌐 User/Laptop<br/>az login user token<br/>❌ BLOCKED (403)"] -.->|✗ not a managed identity| Foundry["🔒 Azure AI Foundry<br/>public DNS, NSP-guarded"]
+        NspApp["App Service (no VNet)<br/>foundry-demo-nsp-app<br/>System-assigned MI ✅"] -->|managed identity<br/>from subscription| Foundry
+        NSP["Network Security Perimeter<br/>Inbound rule: Subscriptions = this sub"] -.->|Enforced association| Foundry
+    end
+```
+
+### Demo Flow (Scenario 2)
+
+**Step A (03)** — Deploy the second App Service against the still-public Foundry. Both laptop and app work. *(baseline)*
+
+**Step B (04)** — Apply the Network Security Perimeter (Enforced). The app keeps working via its managed identity; the laptop is now blocked.
+
+**What the customer sees:**
+- Before: "This second app has **no** VNet integration, yet it reaches Foundry — and so does my laptop."
+- After: "Same app, still works — because it authenticates with a **managed identity**. My laptop is now blocked even though the endpoint is still public. The perimeter gates by **identity**, not network."
+
+### Deploy (Scenario 2)
+
+> **Prerequisite:** Scenario 2 runs from the **Scenario 1 Phase-1 (public) baseline** — you must have already run `01-deploy-public-access` (it creates the Foundry + App Service Plan and the shared `.deploy-suffix`). You do **not** need Scenario 1 Phase 2 (`02-*`).
+>
+> ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 2 (`04-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 2 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
+
+#### Step A: Deploy the second (NSP) App Service
+
+```bash
+# Linux/macOS
+scripts/03-deploy-nsp-app.sh
+```
+
+```powershell
+# Windows PowerShell
+pwsh scripts/03-deploy-nsp-app.ps1
+```
+
+**What this does** (`infra/03-nsp-app-service.bicep`):
+- Ensures the Foundry `publicNetworkAccess = Enabled` (baseline)
+- Deploys a new App Service `foundry-demo-nsp-app-<suffix>` on the **existing** App Service Plan — **no VNet integration**
+- System-assigned managed identity + **Cognitive Services User** role on the existing Foundry
+- App settings include `Demo__Scenario = NSP` so the UI renders the NSP framing
+- Builds and zip-deploys the same .NET 8 app
+
+**After Step A:** visit `https://foundry-demo-nsp-app-<suffix>.azurewebsites.net` → badge shows 🛡️ **NSP PERIMETER**; chat works from both laptop and app (Foundry still public).
+
+#### Step B: Enforce the Network Security Perimeter
+
+```bash
+# Linux/macOS
+scripts/04-enforce-nsp.sh
+```
+
+```powershell
+# Windows PowerShell
+pwsh scripts/04-enforce-nsp.ps1
+```
+
+**What this does** (`infra/04-nsp-enforce.bicep`):
+- Creates `foundry-demo-nsp-<suffix>` (Network Security Perimeter) + profile
+- Adds an **inbound access rule** of type **Subscriptions** = the current subscription (any managed identity from the sub)
+- Associates the **existing Foundry** with the perimeter in **`Enforced`** mode
+
+**After Step B:**
+- ✅ Chat works from the App Service (managed identity allowed by the perimeter)
+- ❌ Chat **fails** from the laptop (user token is not a managed identity → 403)
+- The endpoint DNS is still public — the block is at the identity layer
+
+### Expected Behavior (Scenario 2)
+
+| Actor | Step A (public, no NSP) | Step B (NSP Enforced) | Why |
+|-------|-------------------------|-----------------------|-----|
+| **App Service** (system MI) — Chat | ✅ Yes | ✅ Yes | Managed identity from the subscription is allowed by the inbound rule |
+| **Laptop** (user `az login`) — Chat | ✅ Yes | ❌ No (403) | User token is not a managed identity → denied by the perimeter |
+| **Endpoint DNS** | Public | Public (unchanged) | NSP gates by identity, not by network/DNS |
+| **VNet Integration** | Not required | Not required | The whole point of Scenario 2 |
+
+### Caveats (Scenario 2)
+
+- **Region availability / RP registration:** NSP is not available in every region and may require the `Microsoft.Network` NSP feature to be registered on the subscription. `centralus` is expected to work.
+- **Subscription-wide rule:** the inbound rule allows *any* managed identity in the subscription — including Scenario 1's App Service MI. That is acceptable for this demo; the teaching point is identity-gating vs. the laptop's user token. Tighten with a narrower rule (e.g. specific identities/PaaS resources) for production.
+- **Enforced mode:** applying `Enforced` immediately blocks non-allowed callers. Use `Learning` mode first if you want to observe traffic before enforcing.
+
+---
+
+## Scenario Comparison
+
+| Dimension | Scenario 1 — Private Endpoint | Scenario 2 — Network Security Perimeter |
+|-----------|-------------------------------|------------------------------------------|
+| **Isolation layer** | Network (VNet + private IP) | Identity (managed identity) |
+| **App Service VNet integration** | **Required** | **Not required** |
+| **Foundry public endpoint** | Disabled | Stays public in DNS (NSP-guarded) |
+| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (403) |
+| **Extra infra** | VNet, subnets, private endpoint, private DNS zone | Network Security Perimeter + profile + rule |
+| **DNS behavior** | Resolves to private `10.x` inside VNet | Unchanged public name |
+| **App Service** | `foundry-demo-app-<suffix>` | `foundry-demo-nsp-app-<suffix>` |
+| **Deploy scripts** | `01-*`, `02-*` | `03-*`, `04-*` (needs `01-*` baseline) |
+| **Badge in UI** | 🔴 PUBLIC → 🟢 PRIVATE | 🛡️ NSP PERIMETER (Chat Test is the allow/deny proof) |
+
+Both scenarios authenticate with **Managed Identity** and require **no API keys**.
+
+---
+
 ## App Configuration
 
 ### Environment Variables
@@ -261,7 +393,10 @@ The App Service is configured with these variables (no API key required):
 ```
 AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/
 AzureOpenAI__DeploymentName = gpt-4o-mini
+Demo__Scenario = PrivateEndpoint   # Scenario 1 default; the NSP app sets this to "NSP"
 ```
+
+> **`Demo__Scenario`** drives the UI framing only. `PrivateEndpoint` (default) → 🔴 PUBLIC / 🟢 PRIVATE badge from RFC1918 IP detection. `NSP` → 🛡️ NSP PERIMETER framing where the Chat Test is the allow/deny proof. The `/api/ask` auth logic (Managed Identity via `DefaultAzureCredential`) is identical for both.
 
 ### Authentication Flow
 
@@ -287,6 +422,7 @@ Checks network connectivity and returns JSON:
 
 ```json
 {
+  "scenario": "PrivateEndpoint",
   "hostname": "foundry-demo-ai.cognitiveservices.azure.com",
   "resolvedIPs": ["10.0.1.10"],
   "isPrivate": true,
@@ -296,6 +432,7 @@ Checks network connectivity and returns JSON:
 }
 ```
 
+- **`scenario`**: `PrivateEndpoint` (default) or `NSP`, from the `Demo__Scenario` app setting
 - **`isPrivate`**: `true` if all resolved IPs are RFC1918 (10.x, 172.16–31.x, 192.168.x.x)
 - **`vnetIntegrated`**: `true` if `WEBSITE_PRIVATE_IP` environment variable is set (indicates VNet Integration)
 
@@ -336,9 +473,16 @@ On error (network, auth, model):
 - **Auditability:** Private endpoint connections appear in Azure logs
 
 ### Disabling Public Access
-- Phase 2 sets `public_network_access = false` on foundry-demo-ai
+- Scenario 1 Phase 2 sets `public_network_access = false` on foundry-demo-ai
 - Breaks all public DNS resolution and IP-based access
 - Only way to reach the service is via the private endpoint in the VNet
+
+### Network Security Perimeter (Scenario 2)
+- **Identity-based boundary:** an NSP inbound *Subscriptions* rule permits only managed identities from the subscription — user tokens (e.g. a laptop `az login`) are denied
+- **No VNet required:** the App Service reaches Foundry over the public endpoint but is authorized by its managed identity
+- **Endpoint stays public in DNS:** the block happens at the identity/authorization layer, not the network layer
+- **Enforced vs. Learning:** `Enforced` blocks immediately; use `Learning` mode to observe traffic before enforcing
+- **Scope the rule for production:** the subscription-wide rule allows any MI in the sub — narrow it to specific identities/resources for real workloads
 
 ---
 
@@ -348,10 +492,12 @@ On error (network, auth, model):
 ms-foundry-pe-demo/
 ├── README.md                          # This file
 ├── infra/
-│   ├── 01-public-access.bicep         # Phase 1: VNet, AI Services, App Service, RBAC
-│   └── 02-private-access.bicep        # Phase 2: Private Endpoint, DNS Zone
+│   ├── 01-public-access.bicep         # Scenario 1 Phase 1: VNet, AI Services, App Service, RBAC
+│   ├── 02-private-access.bicep        # Scenario 1 Phase 2: Private Endpoint, DNS Zone
+│   ├── 03-nsp-app-service.bicep       # Scenario 2 Step A: 2nd App Service (no VNet) + RBAC
+│   └── 04-nsp-enforce.bicep           # Scenario 2 Step B: Network Security Perimeter (Enforced)
 ├── src/
-│   ├── Program.cs                     # .NET 8 minimal API with embedded HTML
+│   ├── Program.cs                     # .NET 8 minimal API + embedded HTML (scenario-aware)
 │   ├── appsettings.json               # Endpoint + DeploymentName config
 │   └── *.csproj                       # Project file
 ├── docs/
@@ -359,11 +505,15 @@ ms-foundry-pe-demo/
 │   ├── network-evidence.md            # Network diagnostics & evidence
 │   └── diagrams/                      # Architecture diagrams
 ├── scripts/
-│   ├── 01-deploy-public-access.sh     # Phase 1: Bash wrapper
-│   ├── 01-deploy-public-access.ps1    # Phase 1: PowerShell wrapper
-│   ├── 02-enable-private-access.sh    # Phase 2: Bash wrapper
-│   ├── 02-enable-private-access.ps1   # Phase 2: PowerShell wrapper
-│   └── .deploy-suffix                 # Generated suffix (gitignored)
+│   ├── 01-deploy-public-access.sh     # Scenario 1 Phase 1: Bash wrapper
+│   ├── 01-deploy-public-access.ps1    # Scenario 1 Phase 1: PowerShell wrapper
+│   ├── 02-enable-private-access.sh    # Scenario 1 Phase 2: Bash wrapper
+│   ├── 02-enable-private-access.ps1   # Scenario 1 Phase 2: PowerShell wrapper
+│   ├── 03-deploy-nsp-app.sh           # Scenario 2 Step A: Bash wrapper
+│   ├── 03-deploy-nsp-app.ps1          # Scenario 2 Step A: PowerShell wrapper
+│   ├── 04-enforce-nsp.sh              # Scenario 2 Step B: Bash wrapper
+│   ├── 04-enforce-nsp.ps1             # Scenario 2 Step B: PowerShell wrapper
+│   └── .deploy-suffix                 # Generated suffix (gitignored, shared by both scenarios)
 ├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
 ```
@@ -422,6 +572,7 @@ az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
 - [Azure AI Foundry](https://azure.microsoft.com/en-us/products/ai-services/foundry/)
 - [Private Endpoints for Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/how-to/manage-identity)
 - [VNet Integration in App Service](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration)
+- [Network Security Perimeter overview](https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts)
 - [DefaultAzureCredential (Azure Identity SDK)](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential)
 
 ---
@@ -438,5 +589,5 @@ This is a demo repository maintained by the Azure AI team. For bugs or feedback,
 
 ---
 
-**Demo Version:** 3.0 (Bicep Infrastructure-as-Code)  
-**Last Updated:** May 2025
+**Demo Version:** 4.0 (adds Scenario 2 — Network Security Perimeter)  
+**Last Updated:** July 2026
