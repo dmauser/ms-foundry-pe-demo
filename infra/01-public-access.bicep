@@ -59,6 +59,13 @@ resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   name: aiServicesName
   location: location
   kind: 'AIServices'
+  // System-assigned managed identity is required by the Network Security
+  // Perimeter (Scenario 2): NSP permits intra-perimeter communication only for
+  // resources that authenticate with a managed identity. Without it the NSP
+  // association reports a "MissingIdentityConfiguration" issue.
+  identity: {
+    type: 'SystemAssigned'
+  }
   sku: {
     name: 'S0'
   }
