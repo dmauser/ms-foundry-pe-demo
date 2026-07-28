@@ -59,7 +59,7 @@ app.MapGet("/api/ask", async (string? prompt) =>
         return Results.BadRequest(new { error = "prompt query parameter is required" });
 
     var endpoint = app.Configuration["AzureOpenAI:Endpoint"] ?? "";
-    var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-4o-mini";
+    var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-5-mini";
 
     if (string.IsNullOrEmpty(endpoint))
         return Results.Json(new { error = "AzureOpenAI:Endpoint configuration is missing" }, statusCode: 500);

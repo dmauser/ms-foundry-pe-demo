@@ -10,11 +10,13 @@ param suffix string
 @description('Azure region for all resources')
 param location string = 'centralus'
 
+@description('Deployment name of the model created in Scenario 1 (01-*). Must match.')
+param deploymentName string = 'gpt-5-mini'
+
 // --- Naming ---
 var aiServicesName = 'foundry-demo-ai-${suffix}'
 var appServicePlanName = 'foundry-demo-plan-${suffix}'
 var nspWebAppName = 'foundry-demo-nsp-app-${suffix}'
-var deploymentName = 'gpt-4o-mini'
 
 // --- References to existing Scenario 1 resources ---
 resource aiServices 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {

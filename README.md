@@ -26,7 +26,7 @@ Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys
 | Aspect | Value |
 |--------|-------|
 | **Resource Type** | Azure AI Services (AIServices / "Foundry" in Portal) |
-| **Model** | `gpt-4o-mini` (GlobalStandard) |
+| **Model** | `gpt-5-mini` (GlobalStandard) |
 | **Authentication** | Managed Identity (DefaultAzureCredential) |
 | **Region** | `centralus` |
 | **Scenario 1 App** | `https://foundry-demo-app-<suffix>.azurewebsites.net` (VNet integrated) |
@@ -176,7 +176,7 @@ pwsh scripts/01-deploy-public-access.ps1
 **What this does:**
 - Creates resource group: `rg-foundry-demo-<suffix>`
 - Deploys all infrastructure via Bicep (`infra/01-public-access.bicep`):
-  - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-4o-mini, GlobalStandard)
+  - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-5-mini, GlobalStandard)
   - App Service Plan: `foundry-demo-plan-<suffix>` (Linux, B1)
   - App Service: `foundry-demo-app-<suffix>` with VNet Integration
   - VNet: `foundry-demo-vnet-<suffix>` (10.0.0.0/16) with two subnets
@@ -184,7 +184,7 @@ pwsh scripts/01-deploy-public-access.ps1
 - Builds and zip-deploys the .NET 8 app
 - App Settings configured automatically:
   - `AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/`
-  - `AzureOpenAI__DeploymentName = gpt-4o-mini`
+  - `AzureOpenAI__DeploymentName = gpt-5-mini`
   - `AzureOpenAI__UseSystemAssignedIdentity = true`
 - **Leaves public access enabled** on the AI Services resource
 
@@ -305,6 +305,13 @@ graph LR
 > **Prerequisite:** Scenario 2 runs from the **Scenario 1 Phase-1 (public) baseline** — you must have already run `01-deploy-public-access` (it creates the Foundry + App Service Plan and the shared `.deploy-suffix`). You do **not** need Scenario 1 Phase 2 (`02-*`).
 >
 > ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 2 (`04-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 2 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
+>
+> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of `403`). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
+> ```bash
+> az feature registration create --namespace Microsoft.CognitiveServices --name OpenAI.NspPreview
+> az feature registration create --namespace Microsoft.Network --name AllowNSPInPublicPreview
+> ```
+> Registration is usually quick; the script polls until both report `Registered` and then re-registers the `Microsoft.CognitiveServices` / `Microsoft.Network` providers. See [Add an Azure OpenAI service to a network security perimeter](https://learn.microsoft.com/azure/ai-services/openai/how-to/network-security-perimeter).
 
 #### Step A: Deploy the second (NSP) App Service
 
@@ -349,6 +356,8 @@ pwsh scripts/04-enforce-nsp.ps1
 - ❌ Chat **fails** from the laptop (user token is not a managed identity → 403)
 - The endpoint DNS is still public — the block is at the identity layer
 
+> **Note:** data-plane enforcement can take a few minutes to propagate after Step B. If the laptop deny test still returns `200`, wait ~3 minutes and retry.
+
 ### Expected Behavior (Scenario 2)
 
 | Actor | Step A (public, no NSP) | Step B (NSP Enforced) | Why |
@@ -392,7 +401,7 @@ The App Service is configured with these variables (no API key required):
 
 ```
 AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/
-AzureOpenAI__DeploymentName = gpt-4o-mini
+AzureOpenAI__DeploymentName = gpt-5-mini
 Demo__Scenario = PrivateEndpoint   # Scenario 1 default; the NSP app sets this to "NSP"
 ```
 
@@ -437,14 +446,14 @@ Checks network connectivity and returns JSON:
 - **`vnetIntegrated`**: `true` if `WEBSITE_PRIVATE_IP` environment variable is set (indicates VNet Integration)
 
 ### `GET /api/ask?prompt=hello` — Chat API
-Sends prompt to gpt-4o-mini and returns JSON:
+Sends prompt to gpt-5-mini and returns JSON:
 
 ```json
 {
   "prompt": "hello",
   "response": "Hello! How can I help you today?",
   "latencyMs": 456,
-  "model": "gpt-4o-mini",
+  "model": "gpt-5-mini",
   "timestamp": "2025-05-05T16:37:25Z"
 }
 ```

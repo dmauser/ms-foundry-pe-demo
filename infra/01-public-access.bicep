@@ -7,12 +7,18 @@ param suffix string
 @description('Azure region for all resources')
 param location string = 'centralus'
 
+@description('OpenAI model to deploy. Change here to swap models across the demo.')
+param modelName string = 'gpt-5-mini'
+
+@description('Model version. Must be a GA (non-deprecating) version in the target region.')
+param modelVersion string = '2025-08-07'
+
 // --- Naming ---
 var aiServicesName = 'foundry-demo-ai-${suffix}'
 var appServicePlanName = 'foundry-demo-plan-${suffix}'
 var webAppName = 'foundry-demo-app-${suffix}'
 var vnetName = 'foundry-demo-vnet-${suffix}'
-var deploymentName = 'gpt-4o-mini'
+var deploymentName = modelName
 
 // --- Virtual Network ---
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
@@ -73,8 +79,8 @@ resource modelDeployment 'Microsoft.CognitiveServices/accounts/deployments@2024-
   properties: {
     model: {
       format: 'OpenAI'
-      name: 'gpt-4o-mini'
-      version: '2024-07-18'
+      name: modelName
+      version: modelVersion
     }
   }
 }

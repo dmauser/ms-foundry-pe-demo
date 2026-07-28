@@ -1,6 +1,6 @@
 # Azure AI Foundry Private Endpoint Demo — Complete Walkthrough
 
-**Purpose:** Master guide for understanding and running the Private Endpoint demo with Azure AI Foundry (gpt-4o-mini).  
+**Purpose:** Master guide for understanding and running the Private Endpoint demo with Azure AI Foundry (gpt-5-mini).  
 **Time Required:** ~30 minutes (full end-to-end); ~10 minutes (automated deployment)  
 **Audience:** Solutions architects, cloud engineers, security team leads  
 **Authentication:** DefaultAzureCredential (Managed Identity) — **no API keys**
@@ -62,7 +62,7 @@ For an interactive visual breakdown of the architecture, see:
 │ │ foundry-demo-ai-x7k2.cognitiveservices.azure.com            │
 │ │ (Public Endpoint) — ENABLED                                  │
 │ │ IP: 20.42.111.222 (Public Azure IP range)                   │
-│ │ Model: gpt-4o-mini (GlobalStandard SKU)                      │
+│ │ Model: gpt-5-mini (GlobalStandard SKU)                       │
 │ │ ✗ Publicly accessible on internet                           │
 │ └──────────────────────────────────────────────────────────────┤
 └─────────────────────────────────────────────────────────────────┘
@@ -190,7 +190,7 @@ az account set --subscription "YOUR_SUBSCRIPTION_ID"
 3. Creates resource group: `rg-foundry-demo-a3x9k`
 4. Deploys Azure AI Foundry: `foundry-demo-ai-a3x9k`
    - Service: Azure AI Services (AIServices kind)
-   - Model: gpt-4o-mini
+   - Model: gpt-5-mini
    - SKU: GlobalStandard (dedicated capacity)
    - Region: centralus
    - Public endpoint: **ENABLED**
@@ -299,7 +299,7 @@ The app reads these settings from App Service configuration:
 | Setting | Value | Type | Notes |
 |---------|-------|------|-------|
 | `AzureAiFoundry__Endpoint` | `https://foundry-demo-ai-a3x9k.cognitiveservices.azure.com/` | String | **Include trailing slash.** Updated automatically by deployment scripts. |
-| `AzureAiFoundry__DeploymentName` | `gpt-4o-mini` | String | Model deployment name. Must match exact case. |
+| `AzureAiFoundry__DeploymentName` | `gpt-5-mini` | String | Model deployment name. Must match exact case. |
 
 **No API Keys:** Authentication uses **DefaultAzureCredential** with the App Service's **Managed Identity**. This is automatically assigned by the deployment scripts.
 
@@ -396,7 +396,7 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 | **Managed Identity auth fails (401 Unauthorized)** | Managed Identity not assigned or lacks RBAC role | Verify: App Service → Identity → Check system-assigned identity; Role: "Cognitive Services User" on AI Foundry |
 | **DNS still resolves to public IP from Kudu** | Private DNS Zone not linked to VNet | Manual fix: Go to Private DNS Zone → Virtual Network Links → Verify VNet is linked |
 | **Chat returns 502 Bad Gateway** | Private Endpoint not created or VNet route broken | Run Phase 2 script again; verify subnet delegation not conflicting |
-| **Chat returns 404 Not Found** | Deployment name mismatch | Verify `AzureAiFoundry__DeploymentName = gpt-4o-mini` in App Settings (case-sensitive) |
+| **Chat returns 404 Not Found** | Deployment name mismatch | Verify `AzureAiFoundry__DeploymentName = gpt-5-mini` in App Settings (case-sensitive) |
 | **curl from laptop works after Phase 2** | Public access not disabled | Verify: AI Foundry → Networking → "Enabled from selected virtual networks and private endpoints" is saved |
 | **Script hangs during deployment** | Azure API timeout or quota issue | Check quotas: `az compute vm list-usage --location centralus`; re-run script |
 
