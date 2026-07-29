@@ -651,6 +651,7 @@ module testWebApp 'modules-network-secured/test-webapp.bicep' = if (deployTestWe
     accountEndpoint: aiAccount.outputs.accountTarget
     projectName: aiProject.outputs.projectName
     modelDeployment: modelName
+    aiSearchName: aiDependencies.outputs.aiSearchName
     appServiceSku: appServiceSku
   }
   dependsOn: [

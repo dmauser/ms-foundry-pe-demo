@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\temp\\ms-foundry-pe-demo\\src\\ms-foundry-pe-demo.csproj": {}
+    "C:\\Users\\dmauser\\.copilot\\repos\\copilot-worktrees\\ms-foundry-pe-demo\\dmauser-fictional-journey\\src\\ms-foundry-pe-demo.csproj": {}
   },
   "projects": {
-    "C:\\temp\\ms-foundry-pe-demo\\src\\ms-foundry-pe-demo.csproj": {
+    "C:\\Users\\dmauser\\.copilot\\repos\\copilot-worktrees\\ms-foundry-pe-demo\\dmauser-fictional-journey\\src\\ms-foundry-pe-demo.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\temp\\ms-foundry-pe-demo\\src\\ms-foundry-pe-demo.csproj",
+        "projectUniqueName": "C:\\Users\\dmauser\\.copilot\\repos\\copilot-worktrees\\ms-foundry-pe-demo\\dmauser-fictional-journey\\src\\ms-foundry-pe-demo.csproj",
         "projectName": "ms-foundry-pe-demo",
-        "projectPath": "C:\\temp\\ms-foundry-pe-demo\\src\\ms-foundry-pe-demo.csproj",
+        "projectPath": "C:\\Users\\dmauser\\.copilot\\repos\\copilot-worktrees\\ms-foundry-pe-demo\\dmauser-fictional-journey\\src\\ms-foundry-pe-demo.csproj",
         "packagesPath": "C:\\Users\\dmauser\\.nuget\\packages\\",
-        "outputPath": "C:\\temp\\ms-foundry-pe-demo\\src\\obj\\",
+        "outputPath": "C:\\Users\\dmauser\\.copilot\\repos\\copilot-worktrees\\ms-foundry-pe-demo\\dmauser-fictional-journey\\src\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
           "C:\\Users\\dmauser\\AppData\\Roaming\\NuGet\\NuGet.Config"
@@ -43,9 +43,21 @@
         "net8.0": {
           "targetAlias": "net8.0",
           "dependencies": {
+            "Azure.AI.Agents.Persistent": {
+              "target": "Package",
+              "version": "[1.1.0, )"
+            },
             "Azure.AI.OpenAI": {
               "target": "Package",
               "version": "[2.1.0, )"
+            },
+            "Azure.Identity": {
+              "target": "Package",
+              "version": "[1.13.2, )"
+            },
+            "Azure.Search.Documents": {
+              "target": "Package",
+              "version": "[11.6.0, )"
             }
           },
           "imports": [
@@ -67,7 +79,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.420/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.423/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
