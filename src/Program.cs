@@ -125,11 +125,18 @@ app.MapGet("/api/foundry-status", async () =>
     }
 });
 
-// --- Chat API ---
+// --- Chat / Ask API ---
 app.MapGet("/api/ask", async (string? prompt) =>
 {
     if (string.IsNullOrWhiteSpace(prompt))
         return Results.BadRequest(new { error = "prompt query parameter is required" });
+
+    // Scenario 3 — route to the private Foundry Agent (File Search grounded).
+    if (string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
+    {
+        try { return Results.Json(await AgentSupport.AskAsync(app.Configuration, prompt)); }
+        catch (Exception ex) { return Results.Json(new { error = ex.Message, prompt }, statusCode: 502); }
+    }
 
     var endpoint = app.Configuration["AzureOpenAI:Endpoint"] ?? "";
     var deploymentName = app.Configuration["AzureOpenAI:DeploymentName"] ?? "gpt-5-mini";
@@ -165,6 +172,39 @@ app.MapGet("/api/ask", async (string? prompt) =>
     }
 });
 
+// --- Agent seed API (Scenario 3): upload manuals -> vector store -> create agent ---
+app.MapPost("/api/seed", async (HttpRequest req) =>
+{
+    if (!string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
+        return Results.Json(new { error = "Seeding is only available in the Agent scenario." }, statusCode: 400);
+    var force = string.Equals(req.Query["force"], "true", StringComparison.OrdinalIgnoreCase)
+             || string.Equals(req.Query["force"], "1", StringComparison.OrdinalIgnoreCase);
+    try { return Results.Json(await AgentSupport.SeedAsync(app.Configuration, force)); }
+    catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
+});
+
+// --- Agent info API (Scenario 3): current agent / vector store / manuals ---
+app.MapGet("/api/diag-notool", async () =>
+{
+    if (!string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
+        return Results.Json(new { error = "Agent scenario only." }, statusCode: 400);
+    try { return Results.Json(await AgentSupport.DiagNoToolAsync(app.Configuration)); }
+    catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
+});
+
+app.MapGet("/api/agent-info", () => Results.Json(new
+{
+    scenario = Scenario(app.Configuration),
+    ready = AgentState.Ready,
+    agentId = AgentState.AgentId,
+    vectorStoreId = AgentState.VectorStoreId,
+    files = AgentState.FileNames,
+    projectEndpoint = app.Configuration["Agent:ProjectEndpoint"],
+    projectName = app.Configuration["Agent:ProjectName"],
+    model = app.Configuration["Agent:ModelDeployment"],
+    timestamp = DateTime.UtcNow
+}));
+
 app.Run();
 
 // --- Helpers ---
@@ -186,7 +226,7 @@ static bool IsRfc1918(string ip)
 static class Html
 {
     public static string Render(string scenario) =>
-        Template.Replace("__SCENARIO__", scenario == "NSP" ? "NSP" : "PrivateEndpoint");
+        Template.Replace("__SCENARIO__", scenario);
 
 private const string Template = """
 <!DOCTYPE html>
@@ -259,6 +299,22 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <button class="btn" id="btnFoundry" onclick="runFoundryStatus()">🔄 Check Foundry</button>
 </div>
 
+<!-- Agent / Private Data Panel (Scenario 3 only) -->
+<div class="panel" id="agentPanel" style="display:none">
+  <h2>🤖 Private Agent &amp; Data Stores <span id="agentBadge" class="badge badge-unknown">⏳ CHECKING</span></h2>
+  <div class="info-grid">
+    <span class="label">Agent status:</span><span class="value" id="aReady">—</span>
+    <span class="label">Agent ID:</span><span class="value" id="aAgentId">—</span>
+    <span class="label">Vector store:</span><span class="value" id="aVectorStore">—</span>
+    <span class="label">Manuals:</span><span class="value" id="aFiles">—</span>
+    <span class="label">Data path:</span><span class="value" id="aDataPath">Private (VNet-injected)</span>
+  </div>
+  <p class="chat-meta" id="agentNote">The agent runtime is injected into a delegated subnet; Storage, Cosmos DB and AI Search are reachable only over private endpoints (public access disabled).</p>
+  <br/>
+  <button class="btn" id="btnSeed" onclick="seedAgent()">🌱 Seed manuals &amp; create agent</button>
+  <button class="btn" id="btnAgentInfo" onclick="loadAgentInfo()">🔄 Refresh</button>
+</div>
+
 <!-- Chat Test Panel -->
 <div class="panel">
   <h2>💬 Chat Test</h2>
@@ -275,8 +331,10 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 <script>
 const SCENARIO="__SCENARIO__";
 const IS_NSP=SCENARIO==="NSP";
+const IS_AGENT=SCENARIO==="Agent";
 
 function applyScenario(){
+  if(IS_AGENT){applyAgent();return;}
   if(!IS_NSP)return;
   document.title="Scenario 2 — Azure OpenAI Network Security Perimeter Demo";
   document.getElementById('pageTitle').textContent='🛡️ Scenario 2 — Azure OpenAI Network Security Perimeter Demo';
@@ -285,6 +343,54 @@ function applyScenario(){
   document.getElementById('lblVnetIP').textContent='Access control:';
   document.getElementById('lblVnet').textContent='VNet Integrated:';
   document.getElementById('scenarioNote').innerHTML='Endpoint stays public in DNS by design — the boundary is at the <strong>identity layer</strong>. Use the Chat Test below as the allow/deny proof: from the App Service (managed identity) it succeeds; from a laptop (user token) it is blocked by the perimeter.';
+}
+
+function applyAgent(){
+  document.title="Scenario 3 — Private Foundry Agent + VNet Injection";
+  document.getElementById('pageTitle').textContent='🤖 Scenario 3 — Private Foundry Agent (VNet Injection)';
+  document.getElementById('pageSubtitle').textContent='A Foundry Agent injected into a VNet, grounding answers on private appliance manuals in Storage + AI Search — everything private, public access disabled';
+  document.getElementById('scenarioNote').innerHTML='This WebApp is VNet-integrated on <code>app-subnet</code> — the only client that can reach the private agent. Seed the manuals, then ask <em>“why is my washer showing error E4?”</em> for a grounded answer with a citation to the private manual.';
+  document.getElementById('agentPanel').style.display='block';
+  document.getElementById('promptInput').placeholder='e.g. Why is my washer showing error E4?';
+  loadAgentInfo();
+}
+
+async function loadAgentInfo(){
+  const badge=document.getElementById('agentBadge');
+  try{
+    const r=await fetch('/api/agent-info');
+    const d=await r.json();
+    document.getElementById('aReady').textContent=d.ready?'Ready ✓':'Not seeded';
+    document.getElementById('aAgentId').textContent=d.agentId||'—';
+    document.getElementById('aVectorStore').textContent=d.vectorStoreId||'—';
+    document.getElementById('aFiles').textContent=(d.files&&d.files.length)?d.files.join(', '):'—';
+    if(d.ready){badge.className='badge badge-private';badge.textContent='🟢 AGENT READY';}
+    else{badge.className='badge badge-unknown';badge.textContent='🌱 NEEDS SEED';}
+  }catch(e){badge.className='badge badge-public';badge.textContent='⚠️ ERROR';}
+}
+
+async function seedAgent(){
+  const btn=document.getElementById('btnSeed');
+  const badge=document.getElementById('agentBadge');
+  const note=document.getElementById('agentNote');
+  btn.disabled=true;
+  badge.className='badge badge-unknown';
+  badge.innerHTML='<span class="spinner"></span> SEEDING';
+  try{
+    const r=await fetch('/api/seed',{method:'POST'});
+    const d=await r.json();
+    if(d.error){
+      badge.className='badge badge-public';badge.textContent='⚠️ ERROR';
+      note.innerHTML='<span class="error">'+d.error+'</span>';
+    }else{
+      await loadAgentInfo();
+      note.textContent=d.reused?'Agent already existed — reused.':'Seeded '+((d.files&&d.files.length)||0)+' manuals and created the agent.';
+    }
+  }catch(e){
+    badge.className='badge badge-public';badge.textContent='⚠️ ERROR';
+    note.innerHTML='<span class="error">'+e.message+'</span>';
+  }
+  btn.disabled=false;
 }
 
 async function runDiagnostics(){
@@ -379,7 +485,9 @@ async function sendChat(){
       resp.innerHTML='<span class="error">Error: '+d.error+'</span>';
     }else{
       resp.textContent=d.response;
-      meta.textContent=`Model: ${d.model} | Latency: ${d.latencyMs}ms | ${new Date(d.timestamp).toLocaleString()}`;
+      let m=`Model: ${d.model} | Latency: ${d.latencyMs}ms | ${new Date(d.timestamp).toLocaleString()}`;
+      if(d.citations&&d.citations.length)m='📎 Sources: '+d.citations.join(', ')+'  •  '+m;
+      meta.textContent=m;
     }
   }catch(e){
     resp.innerHTML='<span class="error">Network error: '+e.message+'</span>';

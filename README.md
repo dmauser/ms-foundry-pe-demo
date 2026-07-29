@@ -6,18 +6,19 @@
 
 **A hands-on demo proving two different ways to secure access to Azure AI Foundry models — with zero API keys.**
 
-This repository demonstrates two complementary security patterns against the **same** Azure AI Foundry resource:
+This repository demonstrates three complementary security patterns for Azure AI Foundry:
 
 - **Scenario 1 — Private Endpoint + VNet Integration** *(network-layer isolation)*: the App Service joins a VNet and reaches Foundry over a private endpoint; the public endpoint is disabled and the laptop is blocked because it cannot route to the private IP.
 - **Scenario 2 — Network Security Perimeter (NSP) + Managed Identity** *(identity-layer isolation)*: a second App Service **without** VNet integration reaches Foundry; a Network Security Perimeter locks the resource down so only **managed identities from the subscription** are allowed. The App Service (system-assigned MI) works; the laptop (user `az login` token) is blocked. The endpoint stays public in DNS — the boundary is at the **identity layer**.
+- **Scenario 3 — Private Agent + Virtual Network Injection** *(whole-platform isolation)*: a Foundry **Agent** (Standard Agent Setup) is *injected* into a delegated subnet and grounds answers on **private data** (BYO Storage + Cosmos DB + AI Search, all public-access-disabled, reached over private endpoints). A **VNet-integrated App Service** is the only client that can reach it — it seeds sample product manuals, then answers questions **with citations** to the private data. The laptop is blocked (Foundry public access disabled). Scenarios 1 & 2 secure the *model endpoint*; Scenario 3 secures the **entire agent runtime + all its data stores**.
 
-Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys anywhere.
+Both Scenarios 1 & 2 use **Managed Identity (DefaultAzureCredential)** — no API keys anywhere. Scenario 3 extends the same identity model to the agent runtime and its private data stores.
 
 ---
 
 ### 📑 Navigation
 
-[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
+[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Scenario 3: Private Agent](#scenario-3--private-agent--virtual-network-injection) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
 
 ---
 
@@ -31,6 +32,7 @@ Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys
 | **Region** | `centralus` |
 | **Scenario 1 App** | `https://foundry-demo-app-<suffix>.azurewebsites.net` (VNet integrated) |
 | **Scenario 2 App** | `https://foundry-demo-nsp-app-<suffix>.azurewebsites.net` (no VNet) |
+| **Scenario 3 App** | `https://<agent-app>.azurewebsites.net` (VNet integrated; name generated, region `westus3`) |
 | **Architecture** | .NET 8 minimal API + embedded dark-theme UI (single codebase, scenario-aware via `Demo__Scenario`) |
 
 ---
@@ -446,21 +448,164 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 ---
 
+## Scenario 3 — Private Agent + Virtual Network Injection
+
+Scenarios 1 & 2 secure the **model endpoint**. Scenario 3 secures the **entire agent
+platform**: a Foundry **Agent** (Standard Agent Setup) is *injected* into a delegated
+subnet and grounds its answers on **private data** — sample appliance product manuals in
+**BYO Storage**, vectorized into **BYO AI Search**, with agent threads in **BYO Cosmos DB**.
+All three data stores have **public access disabled** and are reached only over **private
+endpoints**. The Foundry account/project public endpoint is **disabled**, so the only client
+that can reach the agent is the **VNet-integrated App Service** front end.
+
+**Theme — "Product Manual Support Bot":** the agent uses **File Search** over three
+fictional manuals (AquaWash 3000 washer, DryMaster 500 dryer, SparkleClean 200 dishwasher).
+The hero query is *"Why is my washer showing error E4?"* → the agent answers **with a
+citation** to the private manual (`aquawash-3000.md`), proving the data never left the VNet.
+
+> **This is the Microsoft-recommended [Standard Agent Setup with network injection](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/virtual-networks?tabs=portal&pivots=templates#architecture-diagram).** Scenario 3 vendors the official `15-private-network-standard-agent-setup` template and adds a VNet-integrated test WebApp front end (consistent with Scenarios 1 & 2).
+
+### Architecture
+
+```mermaid
+flowchart LR
+    laptop["💻 Laptop<br/>(user token)"]
+    subgraph vnet["VNet 192.168.0.0/16 (westus3)"]
+        subgraph appsub["app-subnet .2.0/24<br/>(Microsoft.Web delegation)"]
+            webapp["🌐 Test WebApp<br/>(VNet-integrated, system MI)"]
+        end
+        subgraph agentsub["agent-subnet .0.0/24<br/>(Microsoft.App delegation)"]
+            agent["🤖 Foundry Agent<br/>(network-injected)"]
+        end
+        subgraph pesub["pe-subnet .1.0/24 (private endpoints)"]
+            peF["PE → Foundry"]
+            peS["PE → Storage"]
+            peC["PE → Cosmos"]
+            peR["PE → AI Search"]
+        end
+    end
+    foundry["🧠 Foundry account + project<br/>(public access DISABLED)"]
+    storage["📦 Storage (manuals)<br/>public access DISABLED"]
+    cosmos["🗄️ Cosmos DB serverless (threads)<br/>public access DISABLED"]
+    search["🔎 AI Search Basic (vectors)<br/>public access DISABLED"]
+
+    webapp -->|seed + ask| peF --> foundry
+    agent -->|File Search| peR --> search
+    agent -->|manuals| peS --> storage
+    agent -->|threads| peC --> cosmos
+    laptop -.->|"❌ blocked (no route to private IP)"| foundry
+    laptop -->|"✅ public front door"| webapp
+```
+
+### Key constraint you must accept — cost
+
+VNet injection **requires Standard Agent Setup**, which **mandates all three BYO resources**
+(Storage + Cosmos + AI Search). They can't be dropped — Basic setup has no BYO but also no
+private networking. The **cost floor is Azure AI Search Basic (~$0.10/hr, ~$75/mo).**
+Mitigations baked in: **Cosmos = serverless** (~$0 idle), **Storage = pennies**, and
+**deploy-on-demand + tear-down-after** → a 1-hour demo ≈ **$0.25**. See [Cost](#cost).
+
+### Demo Flow (Scenario 3)
+
+1. **Deploy** `05-deploy-private-agent` → creates the VNet + private data stores + injected
+   Foundry agent + the VNet-integrated WebApp, then builds & deploys the app.
+2. **Seed** — click **🌱 Seed manuals & create agent** in the app (or the script auto-seeds).
+   The WebApp (inside the VNet) uploads the manuals to private blob, builds the File-Search
+   vector store in private AI Search, and creates the agent.
+3. **Ask** — *"Why is my washer showing error E4?"* → the agent returns a grounded answer
+   with **📎 Sources: aquawash-3000.md**.
+4. **Isolation proof** — the app (in the VNet) works; hitting the Foundry/agent endpoint
+   directly from your **laptop is blocked** (public access disabled).
+
+### Deploy (Scenario 3)
+
+> **Prerequisite:** completely **self-contained** — its own resource group
+> (`rg-foundry-agent-<suffix>`), own suffix (`scripts/.deploy-suffix-agent`), region
+> `westus3`. It does **not** touch Scenario 1/2 infra. The script registers the required
+> resource providers automatically. Deployment takes **~10–15 min** (capability host +
+> private endpoints).
+
+```bash
+# Linux/macOS
+scripts/05-deploy-private-agent.sh
+```
+
+```powershell
+# Windows PowerShell
+pwsh scripts/05-deploy-private-agent.ps1
+```
+
+The script prints the generated **App URL** and project endpoint. Open the app, click
+**Seed** if auto-seed didn't complete, then ask the E4 question.
+
+### Expected Behavior (Scenario 3)
+
+| Client | Path | Result | Why |
+|---|---|---|---|
+| **Test WebApp** (in VNet) | Seed + Ask via `/api/*` | ✅ Grounded answer **with citation** | VNet-integrated outbound routes to the private endpoints |
+| **Laptop** | Foundry/agent endpoint directly | ❌ Blocked | Foundry public access disabled; no route to the private IP |
+| **Data stores** | Storage / Cosmos / Search | 🔒 Private only | Public access disabled; PE-only in `pe-subnet` |
+
+The teaching point: the **grounded citation** is the proof the agent read **private** data
+over the VNet — while the same data is unreachable from the public internet.
+
+### Validated end-to-end (DMAUSER-FDPO)
+
+The full **private data path** is verified working on a live deploy:
+
+| Proof point | Result |
+|---|---|
+| VNet-integrated WebApp reaches the **private** Foundry project | ✅ |
+| Seed uploads manuals to **private blob Storage** | ✅ |
+| Manuals vectorised into the **private AI Search** store (3/3 files ingested) | ✅ |
+| AI Search index is queryable and returns the correct manual for *"E4"* | ✅ (verified on the data plane) |
+| Agent threads persist in **private Cosmos DB**; a no-tool agent run completes | ✅ |
+| Laptop → Foundry/agent endpoint directly | ❌ Blocked (public access disabled) |
+
+> **⚠️ Known limitation — File Search runtime on gpt-5.x (as of this writing).** The managed
+> **File Search** tool call currently returns a server-side error (`tool_calls/failed
+> [server_error]`) at *query* time in this private Standard-Agent-Setup, across every
+> deployable model (`gpt-5-mini`, `gpt-5.4-mini`, `gpt-5.4`). This is **not** a defect in this
+> template — the infrastructure, RBAC, private DNS, capability host, connections and the AI
+> Search index (documents + vectors) are all verified correct and match Microsoft's reference
+> `15-private-network-standard-agent-setup`. The only model proven to work end-to-end with
+> File Search is **`gpt-4.1`**, which is now **deprecation-blocked** for new deployments in
+> this subscription, so it cannot be deployed to confirm. Retry when a gpt-4-class agent model
+> is available again, or track the Foundry File-Search runtime for gpt-5.x support. The
+> template deploys `text-embedding-3-large` so the vector store has an embedder present the
+> moment File Search is unblocked.
+
+### Region & model notes
+
+- **Region `westus3`** — agent network injection is region-limited; `westus3` supports
+  Standard Agent Setup. It's a bicep param (`location`) if you need another supported region.
+- **Model `gpt-5-mini`** (`2025-08-07`, GlobalStandard) — the default chat model (agent-capable;
+  `gpt-4o-mini`/`gpt-4.1` are deprecation-blocked for new deployments). Bicep param `modelName`.
+- **Embedding `text-embedding-3-large`** (`v1`, Standard) — deployed alongside the chat model
+  for the File Search vector store. Bicep param `embeddingModelName` (set empty to skip).
+- **Subnet range `192.168.0.0/16`** (Class C) — guarantees agent-subnet support in every
+  region and avoids the Class-A regional limitation.
+
+---
+
 ## Scenario Comparison
 
-| Dimension | Scenario 1 — Private Endpoint | Scenario 2 — Network Security Perimeter |
-|-----------|-------------------------------|------------------------------------------|
-| **Isolation layer** | Network (VNet + private IP) | Identity (managed identity) |
-| **App Service VNet integration** | **Required** | **Not required** |
-| **Foundry public endpoint** | Disabled | Stays public in DNS (NSP-guarded) |
-| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (401) |
-| **Extra infra** | VNet, subnets, private endpoint, private DNS zone | Network Security Perimeter + profile + rule |
-| **DNS behavior** | Resolves to private `10.x` inside VNet | Unchanged public name |
-| **App Service** | `foundry-demo-app-<suffix>` | `foundry-demo-nsp-app-<suffix>` |
-| **Deploy scripts** | `01-*`, `02-*` | `03-*`, `04-*` (needs `01-*` baseline) |
-| **Badge in UI** | 🔴 PUBLIC → 🟢 PRIVATE | 🛡️ NSP PERIMETER (Chat Test is the allow/deny proof) |
+| Dimension | Scenario 1 — Private Endpoint | Scenario 2 — Network Security Perimeter | Scenario 3 — Private Agent (VNet Injection) |
+|-----------|-------------------------------|------------------------------------------|---------------------------------------------|
+| **What's secured** | Model endpoint | Model endpoint | **Whole agent runtime + 3 data stores** |
+| **Isolation layer** | Network (VNet + private IP) | Identity (managed identity) | Network (VNet injection + private endpoints) |
+| **App Service VNet integration** | **Required** | **Not required** | **Required** |
+| **Foundry public endpoint** | Disabled | Stays public in DNS (NSP-guarded) | Disabled |
+| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (401) | Cannot route to the private IP |
+| **Extra infra** | VNet, subnets, private endpoint, private DNS zone | Network Security Perimeter + profile + rule | VNet (3 subnets) + Storage/Cosmos/Search (private) + capability host + 6 DNS zones |
+| **Private data** | — | — | **Storage (manuals) + Cosmos (threads) + AI Search (vectors)** |
+| **App Service** | `foundry-demo-app-<suffix>` | `foundry-demo-nsp-app-<suffix>` | `<agent-app>` (generated) |
+| **Deploy scripts** | `01-*`, `02-*` | `03-*`, `04-*` (needs `01-*` baseline) | `05-*` (self-contained) |
+| **Region** | `centralus` | `centralus` | `westus3` (agent network injection) |
+| **Cost floor** | ~$55/mo (B1 plan) | ~$55/mo (B1 plan) | **~$75/mo (AI Search Basic)** — deploy on demand |
+| **Badge in UI** | 🔴 PUBLIC → 🟢 PRIVATE | 🛡️ NSP PERIMETER (Chat Test is the proof) | 🤖 PRIVATE AGENT (grounded citation is the proof) |
 
-Both scenarios authenticate with **Managed Identity** and require **no API keys**.
+All three scenarios authenticate with **Managed Identity** and require **no API keys**.
 
 ---
 
@@ -473,10 +618,10 @@ The App Service is configured with these variables (no API key required):
 ```
 AzureOpenAI__Endpoint = https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com/
 AzureOpenAI__DeploymentName = gpt-5-mini
-Demo__Scenario = PrivateEndpoint   # Scenario 1 default; the NSP app sets this to "NSP"
+Demo__Scenario = PrivateEndpoint   # Scenario 1 default; NSP app sets "NSP"; agent app sets "Agent"
 ```
 
-> **`Demo__Scenario`** drives the UI framing only. `PrivateEndpoint` (default) → 🔴 PUBLIC / 🟢 PRIVATE badge from RFC1918 IP detection. `NSP` → 🛡️ NSP PERIMETER framing where the Chat Test is the allow/deny proof. The `/api/ask` auth logic (Managed Identity via `DefaultAzureCredential`) is identical for both.
+> **`Demo__Scenario`** drives the UI framing only. `PrivateEndpoint` (default) → 🔴 PUBLIC / 🟢 PRIVATE badge from RFC1918 IP detection. `NSP` → 🛡️ NSP PERIMETER framing where the Chat Test is the allow/deny proof. `Agent` → 🤖 PRIVATE AGENT framing with a Seed panel + File-Search citations (Scenario 3). The `/api/ask` auth logic (Managed Identity via `DefaultAzureCredential`) is identical for all three.
 
 ### Authentication Flow
 
@@ -575,9 +720,15 @@ ms-foundry-pe-demo/
 │   ├── 01-public-access.bicep         # Scenario 1 Phase 1: VNet, AI Services, App Service, RBAC
 │   ├── 02-private-access.bicep        # Scenario 1 Phase 2: Private Endpoint, DNS Zone
 │   ├── 03-nsp-app-service.bicep       # Scenario 2 Step A: 2nd App Service (no VNet) + RBAC
-│   └── 04-nsp-enforce.bicep           # Scenario 2 Step B: Network Security Perimeter (Enforced)
+│   ├── 04-nsp-enforce.bicep           # Scenario 2 Step B: Network Security Perimeter (Enforced)
+│   └── 05-private-agent/              # Scenario 3: Standard Agent Setup + VNet injection
+│       ├── main.bicep                 #   Orchestrator (VNet, data stores, Foundry, caphost, WebApp)
+│       ├── main.json                  #   Compiled ARM template
+│       └── modules-network-secured/   #   VNet, private endpoints, data stores, test-webapp.bicep
 ├── src/
 │   ├── Program.cs                     # .NET 8 minimal API + embedded HTML (scenario-aware)
+│   ├── AgentSupport.cs                # Scenario 3: agent seed/ask (Azure.AI.Agents.Persistent)
+│   ├── Manuals.cs                     # Scenario 3: embedded sample appliance manuals
 │   ├── appsettings.json               # Endpoint + DeploymentName config
 │   └── *.csproj                       # Project file
 ├── docs/
@@ -593,9 +744,12 @@ ms-foundry-pe-demo/
 │   ├── 03-deploy-nsp-app.ps1          # Scenario 2 Step A: PowerShell wrapper
 │   ├── 04-enforce-nsp.sh              # Scenario 2 Step B: Bash wrapper
 │   ├── 04-enforce-nsp.ps1             # Scenario 2 Step B: PowerShell wrapper
-│   ├── 99-teardown.sh                 # Teardown: delete the lab resource group (Bash)
-│   ├── 99-teardown.ps1                # Teardown: delete the lab resource group (PowerShell)
-│   └── .deploy-suffix                 # Generated suffix (gitignored, shared by both scenarios)
+│   ├── 05-deploy-private-agent.sh     # Scenario 3: Bash wrapper (self-contained)
+│   ├── 05-deploy-private-agent.ps1    # Scenario 3: PowerShell wrapper (self-contained)
+│   ├── 99-teardown.sh                 # Teardown (Bash): -Scenario nsp|agent, purges Foundry
+│   ├── 99-teardown.ps1                # Teardown (PowerShell): -Scenario nsp|agent, purges Foundry
+│   ├── .deploy-suffix                 # Generated suffix (gitignored, Scenarios 1 & 2)
+│   └── .deploy-suffix-agent           # Generated suffix (gitignored, Scenario 3)
 ├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
 ```
@@ -657,6 +811,24 @@ the bill, and everything else is effectively free at idle. Approximate list pric
 this drops spend to **$0**. The Foundry model is consumption-only (near $0 unless you
 send heavy traffic), NSP is free while in preview, and demo log ingestion is negligible.
 
+### Scenario 3 (Private Agent) — separate & pricier
+
+Scenario 3 is deployed on demand into its **own** resource group (`westus3`) and has a
+**higher floor** because Standard Agent Setup **mandates Azure AI Search**:
+
+| Resource | SKU | Cost model | Est. cost |
+|---|---|---|---|
+| **Azure AI Search** | **Basic** (required by Standard Agent Setup) | fixed hourly | **~$0.10/hr → ~$75/mo** |
+| App Service Plan | **B1 Linux** (test WebApp) | fixed hourly | ~$0.075/hr → ~$55/mo |
+| Cosmos DB | **Serverless** (agent threads) | per-request | ~$0 idle |
+| Storage account | **Standard LRS** (manuals) | per-GB + ops | pennies |
+| Azure AI Foundry + `gpt-5-mini` + `text-embedding-3-large` | AIServices **S0** / GlobalStandard | consumption | ~$0 idle; pennies per demo |
+
+**Bottom line for Scenario 3:** AI Search + B1 bill **hourly whether or not you use them**,
+so **~$0.20/hr (~$185/mo if left running)**. Because it's **deploy-on-demand + tear-down-
+after**, a **1-hour demo ≈ $0.25**. **Always run `99-teardown -Scenario agent` when done** —
+AI Search Basic cannot be paused.
+
 > Figures are approximate list prices and vary by region, currency, and actual
 > token/log usage. Verify against the
 > [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for a
@@ -690,6 +862,30 @@ pwsh scripts/99-teardown.ps1 -Subscription <sub-id> -Suffix <suffix>
 On success the script also clears `scripts/.deploy-suffix` so the next deployment
 generates a fresh suffix.
 
+### Scenario 3 (Private Agent) teardown
+
+Scenario 3 lives in its own resource group with its own suffix file
+(`scripts/.deploy-suffix-agent`). Pass `-Scenario agent` / `--scenario agent`:
+
+```bash
+scripts/99-teardown.sh --scenario agent
+# non-interactive / CI:
+scripts/99-teardown.sh --scenario agent --yes
+```
+
+```powershell
+pwsh scripts/99-teardown.ps1 -Scenario agent
+# non-interactive / CI:
+pwsh scripts/99-teardown.ps1 -Scenario agent -Yes
+```
+
+> **Foundry soft-delete purge:** deleting the resource group only *soft-deletes* the
+> Foundry (Cognitive Services) account, which blocks a same-name redeploy and still counts
+> against quota. The teardown script captures the account(s) **before** deletion and runs
+> `az cognitiveservices account purge` **after**, so the name is fully released. Purge is
+> skipped with `-NoWait`/`--no-wait` (the RG delete hasn't finished yet) — in that case
+> purge manually once the group is gone. This applies to **all** scenarios.
+
 <details>
 <summary>Manual one-liner (if you prefer not to use the script)</summary>
 
@@ -715,6 +911,7 @@ az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
 - [Private Endpoints for Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/how-to/manage-identity)
 - [VNet Integration in App Service](https://learn.microsoft.com/en-us/azure/app-service/overview-vnet-integration)
 - [Network Security Perimeter overview](https://learn.microsoft.com/en-us/azure/private-link/network-security-perimeter-concepts)
+- [Standard Agent Setup with virtual networks](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/virtual-networks?tabs=portal&pivots=templates#architecture-diagram)
 - [DefaultAzureCredential (Azure Identity SDK)](https://learn.microsoft.com/en-us/dotnet/api/azure.identity.defaultazurecredential)
 
 ---
@@ -731,5 +928,5 @@ This is a demo repository maintained by the Azure AI team. For bugs or feedback,
 
 ---
 
-**Demo Version:** 4.1 (Scenario 2 — Network Security Perimeter + NSP diagnostic-log validation)  
+**Demo Version:** 5.0 (Scenario 3 — Private Agent + Virtual Network Injection)  
 **Last Updated:** July 2026
