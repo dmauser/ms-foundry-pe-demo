@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.42.1.51946",
-      "templateHash": "5178235742196785857"
+      "templateHash": "5570183914449868331"
     }
   },
   "parameters": {
@@ -3928,6 +3928,9 @@
           "modelDeployment": {
             "value": "[parameters('modelName')]"
           },
+          "aiSearchName": {
+            "value": "[reference(resourceId('Microsoft.Resources/deployments', format('dependencies-{0}-deployment', variables('uniqueSuffix'))), '2025-04-01').outputs.aiSearchName.value]"
+          },
           "appServiceSku": {
             "value": "[parameters('appServiceSku')]"
           }
@@ -3939,7 +3942,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.42.1.51946",
-              "templateHash": "16639649800441761626"
+              "templateHash": "7802877428408596442"
             }
           },
           "parameters": {
@@ -3991,6 +3994,12 @@
                 "description": "The model deployment name the agent uses"
               }
             },
+            "aiSearchName": {
+              "type": "string",
+              "metadata": {
+                "description": "The AI Search service name backing the app-side RAG grounding index"
+              }
+            },
             "appServiceSku": {
               "type": "string",
               "defaultValue": "B1",
@@ -4004,7 +4013,9 @@
             "siteName": "[format('foundry-demo-agent-app-{0}', parameters('suffix'))]",
             "cognitiveServicesUserRoleId": "a97b65f3-24c7-4388-baec-2e87135dc908",
             "azureAiUserRoleId": "53ca6127-db72-4b80-b1b0-d745d6d5456d",
-            "readerRoleId": "acdd72a7-3385-48ef-bd42-f606fba81ae7"
+            "readerRoleId": "acdd72a7-3385-48ef-bd42-f606fba81ae7",
+            "searchIndexDataContributorRoleId": "8ebe5a00-799e-43f5-93ac-243d3dce84a7",
+            "searchServiceContributorRoleId": "7ca78c08-252a-4471-8644-bb5ff32d4ba0"
           },
           "resources": [
             {
@@ -4069,6 +4080,14 @@
                       "value": "[parameters('modelDeployment')]"
                     },
                     {
+                      "name": "Agent__SearchEndpoint",
+                      "value": "[format('https://{0}.search.windows.net', parameters('aiSearchName'))]"
+                    },
+                    {
+                      "name": "Agent__SearchIndexName",
+                      "value": "manuals-idx"
+                    },
+                    {
                       "name": "WEBSITE_RUN_FROM_PACKAGE",
                       "value": "1"
                     }
@@ -4077,6 +4096,34 @@
               },
               "dependsOn": [
                 "[resourceId('Microsoft.Web/serverfarms', variables('planName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('aiSearchName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('aiSearchName')), resourceId('Microsoft.Web/sites', variables('siteName')), variables('searchIndexDataContributorRoleId'))]",
+              "properties": {
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('siteName')), '2023-12-01', 'full').identity.principalId]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('searchIndexDataContributorRoleId'))]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('siteName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.Search/searchServices', parameters('aiSearchName'))]",
+              "name": "[guid(resourceId('Microsoft.Search/searchServices', parameters('aiSearchName')), resourceId('Microsoft.Web/sites', variables('siteName')), variables('searchServiceContributorRoleId'))]",
+              "properties": {
+                "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('siteName')), '2023-12-01', 'full').identity.principalId]",
+                "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('searchServiceContributorRoleId'))]",
+                "principalType": "ServicePrincipal"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.Web/sites', variables('siteName'))]"
               ]
             },
             {
@@ -4141,6 +4188,7 @@
       "dependsOn": [
         "[resourceId('Microsoft.Resources/deployments', format('capabilityHost-configuration-{0}-deployment', variables('uniqueSuffix')))]",
         "[resourceId('Microsoft.Resources/deployments', format('{0}-{1}-deployment', variables('accountName'), variables('uniqueSuffix')))]",
+        "[resourceId('Microsoft.Resources/deployments', format('dependencies-{0}-deployment', variables('uniqueSuffix')))]",
         "[resourceId('Microsoft.Resources/deployments', format('{0}-{1}-deployment', variables('projectName'), variables('uniqueSuffix')))]",
         "[resourceId('Microsoft.Resources/deployments', format('vnet-{0}-{1}-deployment', variables('trimVnetName'), variables('uniqueSuffix')))]"
       ]

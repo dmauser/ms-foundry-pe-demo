@@ -35,6 +35,9 @@ param projectName string
 @description('The model deployment name the agent uses')
 param modelDeployment string
 
+@description('The AI Search service name backing the app-side RAG grounding index')
+param aiSearchName string
+
 @description('App Service plan SKU')
 param appServiceSku string = 'B1'
 
@@ -49,6 +52,13 @@ var azureAiUserRoleId = '53ca6127-db72-4b80-b1b0-d745d6d5456d'
 // Reader — control-plane read of the account's publicNetworkAccess for the
 // Foundry status panel (/api/foundry-status).
 var readerRoleId = 'acdd72a7-3385-48ef-bd42-f606fba81ae7'
+
+// 8ebe5a00... = "Search Index Data Contributor" — lets the WebApp MI read/write
+// documents on the private AI Search grounding index (app-side RAG queries + upload).
+var searchIndexDataContributorRoleId = '8ebe5a00-799e-43f5-93ac-243d3dce84a7'
+// 7ca78c08... = "Search Service Contributor" — lets the WebApp MI create/manage the
+// grounding index schema on the private AI Search (needed by /api/seed).
+var searchServiceContributorRoleId = '7ca78c08-252a-4471-8644-bb5ff32d4ba0'
 
 resource plan 'Microsoft.Web/serverfarms@2023-12-01' = {
   name: planName
@@ -111,6 +121,16 @@ resource site 'Microsoft.Web/sites@2023-12-01' = {
           value: modelDeployment
         }
         {
+          // app-side RAG grounding: the WebApp queries this PRIVATE AI Search over the
+          // private endpoint, injects the matching manual excerpts, and asks the agent.
+          name: 'Agent__SearchEndpoint'
+          value: 'https://${aiSearchName}.search.windows.net'
+        }
+        {
+          name: 'Agent__SearchIndexName'
+          value: 'manuals-idx'
+        }
+        {
           name: 'WEBSITE_RUN_FROM_PACKAGE'
           value: '1'
         }
@@ -122,6 +142,31 @@ resource site 'Microsoft.Web/sites@2023-12-01' = {
 // Reference the account so we can scope data-plane role assignments to it.
 resource account 'Microsoft.CognitiveServices/accounts@2025-04-01-preview' existing = {
   name: accountName
+}
+
+// Reference the private AI Search service to scope the RAG data-plane role.
+resource searchService 'Microsoft.Search/searchServices@2024-06-01-preview' existing = {
+  name: aiSearchName
+}
+
+resource searchIndexDataContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(searchService.id, site.id, searchIndexDataContributorRoleId)
+  scope: searchService
+  properties: {
+    principalId: site.identity.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', searchIndexDataContributorRoleId)
+    principalType: 'ServicePrincipal'
+  }
+}
+
+resource searchServiceContributorAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(searchService.id, site.id, searchServiceContributorRoleId)
+  scope: searchService
+  properties: {
+    principalId: site.identity.principalId
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', searchServiceContributorRoleId)
+    principalType: 'ServicePrincipal'
+  }
 }
 
 resource cognitiveServicesUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {

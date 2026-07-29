@@ -192,12 +192,21 @@ app.MapGet("/api/diag-notool", async () =>
     catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
 });
 
+app.MapGet("/api/diag-tool", async () =>
+{
+    if (!string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
+        return Results.Json(new { error = "Agent scenario only." }, statusCode: 400);
+    try { return Results.Json(await AgentSupport.DiagToolAsync(app.Configuration)); }
+    catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
+});
+
 app.MapGet("/api/agent-info", () => Results.Json(new
 {
     scenario = Scenario(app.Configuration),
     ready = AgentState.Ready,
     agentId = AgentState.AgentId,
-    vectorStoreId = AgentState.VectorStoreId,
+    index = AgentState.IndexName,
+    grounding = "app-side-rag-over-private-ai-search",
     files = AgentState.FileNames,
     projectEndpoint = app.Configuration["Agent:ProjectEndpoint"],
     projectName = app.Configuration["Agent:ProjectName"],

@@ -8,7 +8,7 @@
 #
 # Flow: register RPs -> create RG -> deploy Bicep (VNet + Storage/Cosmos/Search
 # private + Foundry account/project network-injected + capability host + WebApp)
-# -> build & zip-deploy the app -> best-effort seed (upload manuals -> vector
+# -> build & zip-deploy the app -> best-effort seed (upload manuals -> search
 # store -> create agent) from inside the VNet via the WebApp's public front door.
 ###############################################################################
 set -euo pipefail
@@ -82,7 +82,7 @@ az webapp deploy --resource-group "$RESOURCE_GROUP" --name "$WEB_APP_NAME" --src
 # --- Cleanup build artifacts ---
 rm -rf "$PUBLISH_DIR" "$ZIP_FILE"
 
-# --- Step 7: Best-effort seed (upload manuals -> vector store -> create agent) ---
+# --- Step 7: Best-effort seed (upload manuals -> search index -> create agent) ---
 # Runs inside the VNet via the WebApp's public front door. RBAC/app warm-up can
 # lag, so retry a few times; if it doesn't take, click "Seed" in the UI.
 echo -e "\n▶ Seeding the agent (best effort; RBAC propagation can take a few minutes)..."

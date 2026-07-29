@@ -458,10 +458,11 @@ All three data stores have **public access disabled** and are reached only over 
 endpoints**. The Foundry account/project public endpoint is **disabled**, so the only client
 that can reach the agent is the **VNet-integrated App Service** front end.
 
-**Theme — "Product Manual Support Bot":** the agent uses **File Search** over three
-fictional manuals (AquaWash 3000 washer, DryMaster 500 dryer, SparkleClean 200 dishwasher).
-The hero query is *"Why is my washer showing error E4?"* → the agent answers **with a
-citation** to the private manual (`aquawash-3000.md`), proving the data never left the VNet.
+**Theme — "Product Manual Support Bot":** the agent grounds answers on three fictional
+manuals (AquaWash 3000 washer, DryMaster 500 dryer, SparkleClean 200 dishwasher) using
+**app-side RAG over the private AI Search index**. The hero query is *"Why is my washer
+showing error E4?"* → the answer comes back **with a citation** to the private manual
+(`AquaWash-3000-Washer-Manual.md`), proving the data never left the VNet.
 
 > **This is the Microsoft-recommended [Standard Agent Setup with network injection](https://learn.microsoft.com/en-us/azure/foundry/agents/how-to/virtual-networks?tabs=portal&pivots=templates#architecture-diagram).** Scenario 3 vendors the official `15-private-network-standard-agent-setup` template and adds a VNet-integrated test WebApp front end (consistent with Scenarios 1 & 2).
 
@@ -490,8 +491,8 @@ flowchart LR
     search["🔎 AI Search Basic (vectors)<br/>public access DISABLED"]
 
     webapp -->|seed + ask| peF --> foundry
-    agent -->|File Search| peR --> search
-    agent -->|manuals| peS --> storage
+    webapp -->|BM25 retrieve| peR --> search
+    webapp -->|manuals| peS --> storage
     agent -->|threads| peC --> cosmos
     laptop -.->|"❌ blocked (no route to private IP)"| foundry
     laptop -->|"✅ public front door"| webapp
@@ -510,10 +511,11 @@ Mitigations baked in: **Cosmos = serverless** (~$0 idle), **Storage = pennies**,
 1. **Deploy** `05-deploy-private-agent` → creates the VNet + private data stores + injected
    Foundry agent + the VNet-integrated WebApp, then builds & deploys the app.
 2. **Seed** — click **🌱 Seed manuals & create agent** in the app (or the script auto-seeds).
-   The WebApp (inside the VNet) uploads the manuals to private blob, builds the File-Search
-   vector store in private AI Search, and creates the agent.
-3. **Ask** — *"Why is my washer showing error E4?"* → the agent returns a grounded answer
-   with **📎 Sources: aquawash-3000.md**.
+   The WebApp (inside the VNet) uploads the manuals to private blob, builds the grounding
+   index in private AI Search (over its private endpoint), and creates the agent.
+3. **Ask** — *"Why is my washer showing error E4?"* → the WebApp retrieves the matching
+   manual from private AI Search, injects it into the agent prompt, and returns a grounded
+   answer with **📎 Sources: AquaWash-3000-Washer-Manual.md**.
 4. **Isolation proof** — the app (in the VNet) works; hitting the Foundry/agent endpoint
    directly from your **laptop is blocked** (public access disabled).
 
@@ -557,23 +559,28 @@ The full **private data path** is verified working on a live deploy:
 |---|---|
 | VNet-integrated WebApp reaches the **private** Foundry project | ✅ |
 | Seed uploads manuals to **private blob Storage** | ✅ |
-| Manuals vectorised into the **private AI Search** store (3/3 files ingested) | ✅ |
-| AI Search index is queryable and returns the correct manual for *"E4"* | ✅ (verified on the data plane) |
-| Agent threads persist in **private Cosmos DB**; a no-tool agent run completes | ✅ |
+| Manuals indexed into the **private AI Search** store (3/3 files ingested) | ✅ |
+| AI Search index is queryable over its **private endpoint** and returns the correct manual for *"E4"* | ✅ |
+| **Grounded answer** returned with a citation (`grounded:true`, `📎 AquaWash-3000-Washer-Manual.md`) | ✅ |
+| Agent threads persist in **private Cosmos DB**; the agent run completes | ✅ |
 | Laptop → Foundry/agent endpoint directly | ❌ Blocked (public access disabled) |
 
-> **⚠️ Known limitation — File Search runtime on gpt-5.x (as of this writing).** The managed
-> **File Search** tool call currently returns a server-side error (`tool_calls/failed
-> [server_error]`) at *query* time in this private Standard-Agent-Setup, across every
-> deployable model (`gpt-5-mini`, `gpt-5.4-mini`, `gpt-5.4`). This is **not** a defect in this
-> template — the infrastructure, RBAC, private DNS, capability host, connections and the AI
-> Search index (documents + vectors) are all verified correct and match Microsoft's reference
-> `15-private-network-standard-agent-setup`. The only model proven to work end-to-end with
-> File Search is **`gpt-4.1`**, which is now **deprecation-blocked** for new deployments in
-> this subscription, so it cannot be deployed to confirm. Retry when a gpt-4-class agent model
-> is available again, or track the Foundry File-Search runtime for gpt-5.x support. The
-> template deploys `text-embedding-3-large` so the vector store has an embedder present the
-> moment File Search is unblocked.
+> **ℹ️ Grounding design — app-side RAG over private AI Search (not the managed File Search
+> tool).** Scenario 3 grounds the agent with **application-side retrieval**: `/api/seed`
+> builds a keyword (BM25) index in the private AI Search service and uploads the manuals;
+> `/api/ask` retrieves the best-matching manual over the **private endpoint** (WebApp
+> system-assigned MI, `DefaultAzureCredential`), injects the excerpt into the prompt, and the
+> agent answers only from that context and cites the manual title. This keeps **every resource
+> private and in the data path** (Storage + AI Search + Cosmos), is deterministic, and works
+> with the deployable `gpt-5-mini` model.
+>
+> This choice sidesteps a current platform gap: the **managed File Search** tool returns a
+> server-side error (`tool_calls/failed [server_error]`) at *query* time in this private
+> Standard-Agent-Setup across every deployable model (`gpt-5-mini`, `gpt-5.4-mini`, `gpt-5.4`),
+> while the only File-Search-proven family (`gpt-4.1`) is **deprecation-blocked** for new
+> deployments in this subscription. The infra, RBAC, private DNS, capability host and
+> connections all match Microsoft's reference `15-private-network-standard-agent-setup`, so if
+> managed File Search becomes available for gpt-5.x you can switch back with no infra change.
 
 ### Region & model notes
 
@@ -581,8 +588,10 @@ The full **private data path** is verified working on a live deploy:
   Standard Agent Setup. It's a bicep param (`location`) if you need another supported region.
 - **Model `gpt-5-mini`** (`2025-08-07`, GlobalStandard) — the default chat model (agent-capable;
   `gpt-4o-mini`/`gpt-4.1` are deprecation-blocked for new deployments). Bicep param `modelName`.
-- **Embedding `text-embedding-3-large`** (`v1`, Standard) — deployed alongside the chat model
-  for the File Search vector store. Bicep param `embeddingModelName` (set empty to skip).
+- **Embedding `text-embedding-3-large`** (`v1`, Standard) — deployed alongside the chat model.
+  App-side RAG grounds on a **keyword (BM25)** index so an embedder is **not required**; this
+  deployment is kept only so a managed File-Search vector store has an embedder present if you
+  switch back. Bicep param `embeddingModelName` (set empty to skip).
 - **Subnet range `192.168.0.0/16`** (Class C) — guarantees agent-subnet support in every
   region and avoids the Class-A regional limitation.
 
@@ -621,7 +630,7 @@ AzureOpenAI__DeploymentName = gpt-5-mini
 Demo__Scenario = PrivateEndpoint   # Scenario 1 default; NSP app sets "NSP"; agent app sets "Agent"
 ```
 
-> **`Demo__Scenario`** drives the UI framing only. `PrivateEndpoint` (default) → 🔴 PUBLIC / 🟢 PRIVATE badge from RFC1918 IP detection. `NSP` → 🛡️ NSP PERIMETER framing where the Chat Test is the allow/deny proof. `Agent` → 🤖 PRIVATE AGENT framing with a Seed panel + File-Search citations (Scenario 3). The `/api/ask` auth logic (Managed Identity via `DefaultAzureCredential`) is identical for all three.
+> **`Demo__Scenario`** drives the UI framing only. `PrivateEndpoint` (default) → 🔴 PUBLIC / 🟢 PRIVATE badge from RFC1918 IP detection. `NSP` → 🛡️ NSP PERIMETER framing where the Chat Test is the allow/deny proof. `Agent` → 🤖 PRIVATE AGENT framing with a Seed panel + app-side-RAG grounded citations (Scenario 3). The `/api/ask` auth logic (Managed Identity via `DefaultAzureCredential`) is identical for all three.
 
 ### Authentication Flow
 
