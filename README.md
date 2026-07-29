@@ -17,7 +17,7 @@ Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys
 
 ### 📑 Navigation
 
-[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Clean Up](#clean-up) · [Resources](#resources)
+[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
 
 ---
 
@@ -274,7 +274,7 @@ pwsh scripts/02-enable-private-access.ps1
 Scenario 2 uses a `Microsoft.Network/networkSecurityPerimeters` resource with a single **inbound access rule of type _Subscriptions_**. Per Azure NSP semantics, a Subscriptions rule *"allows inbound access authenticated using any managed identity from the subscription."* The Foundry is associated with the perimeter in **`Enforced`** mode:
 
 - ✅ **App Service** (system-assigned MI in the subscription) → **allowed**
-- ❌ **Laptop** (user token from `az login`, not a managed identity) → **blocked (403)**
+- ❌ **Laptop** (user token from `az login`, not a managed identity) → **blocked (401, NSP identity denial)**
 
 No VNet, no private endpoint, no private DNS zone required.
 
@@ -284,7 +284,7 @@ No VNet, no private endpoint, no private DNS zone required.
 graph LR
     subgraph Enforced["🛡️ NSP ENFORCED (identity perimeter)"]
         direction TB
-        User["🌐 User/Laptop<br/>az login user token<br/>❌ BLOCKED (403)"] -.->|✗ not a managed identity| Foundry["🔒 Azure AI Foundry<br/>public DNS, NSP-guarded"]
+        User["🌐 User/Laptop<br/>az login user token<br/>❌ BLOCKED (401)"] -.->|✗ not a managed identity| Foundry["🔒 Azure AI Foundry<br/>public DNS, NSP-guarded"]
         NspApp["App Service (no VNet)<br/>foundry-demo-nsp-app<br/>System-assigned MI ✅"] -->|managed identity<br/>from subscription| Foundry
         NSP["Network Security Perimeter<br/>Inbound rule: Subscriptions = this sub"] -.->|Enforced association| Foundry
     end
@@ -306,7 +306,7 @@ graph LR
 >
 > ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 2 (`04-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 2 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
 >
-> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of `403`). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
+> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of the `401` identity denial). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
 > ```bash
 > az feature registration create --namespace Microsoft.CognitiveServices --name OpenAI.NspPreview
 > az feature registration create --namespace Microsoft.Network --name AllowNSPInPublicPreview
@@ -353,7 +353,7 @@ pwsh scripts/04-enforce-nsp.ps1
 
 **After Step B:**
 - ✅ Chat works from the App Service (managed identity allowed by the perimeter)
-- ❌ Chat **fails** from the laptop (user token is not a managed identity → 403)
+- ❌ Chat **fails** from the laptop (user token is not a managed identity → 401, NSP denial)
 - The endpoint DNS is still public — the block is at the identity layer
 
 > **Note:** data-plane enforcement can take a few minutes to propagate after Step B. If the laptop deny test still returns `200`, wait ~3 minutes and retry.
@@ -363,7 +363,7 @@ pwsh scripts/04-enforce-nsp.ps1
 | Actor | Step A (public, no NSP) | Step B (NSP Enforced) | Why |
 |-------|-------------------------|-----------------------|-----|
 | **App Service** (system MI) — Chat | ✅ Yes | ✅ Yes | Managed identity from the subscription is allowed by the inbound rule |
-| **Laptop** (user `az login`) — Chat | ✅ Yes | ❌ No (403) | User token is not a managed identity → denied by the perimeter |
+| **Laptop** (user `az login`) — Chat | ✅ Yes | ❌ No (401) | User token is not a managed identity → denied by the perimeter |
 | **Endpoint DNS** | Public | Public (unchanged) | NSP gates by identity, not by network/DNS |
 | **VNet Integration** | Not required | Not required | The whole point of Scenario 2 |
 
@@ -378,11 +378,13 @@ pwsh scripts/04-enforce-nsp.ps1
 The perimeter's decisions are only trustworthy if you can *see* them. Step B (`infra/04-nsp-enforce.bicep`) now provisions:
 
 - a **Log Analytics workspace** — `foundry-demo-law-<suffix>`
-- a **diagnostic setting** on the NSP (`nsp-access-logs`) streaming the `allLogs` category group with **resource-specific (Dedicated)** destination, so every access evaluation lands in the **`NSPAccessLogs`** table.
+- a **diagnostic setting** on the NSP (`nsp-access-logs`) with **all 13 NSP log categories enabled explicitly**, so every access evaluation lands in the resource-specific **`NSPAccessLogs`** table.
 
 Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** or **`Denied`** — that is your proof the perimeter is enforcing identity, not just present.
 
-> **Note on `Dedicated`:** ARM occasionally drops `logAnalyticsDestinationType` on the first `diagnosticSettings` write. If a query returns nothing and `NSPAccessLogs` doesn't exist, confirm the destination type is `Dedicated` (see step 5).
+> **⚠️ Critical gotcha — do NOT use `allLogs`:** Network Security Perimeter does **not** support the `allLogs` category group. A diagnostic setting created with `categoryGroup: 'allLogs'` is *accepted by ARM without error but collects nothing*, leaving the workspace permanently empty. You must enable each NSP category explicitly (the bicep does this via the `nspLogCategories` array). The two that matter for this demo are `NspPublicInboundResourceRulesAllowed` (the app's managed identity → `Approved`) and `NspPublicInboundResourceRulesDenied` (the laptop token → `Denied`).
+>
+> **Note on `Dedicated`:** `logAnalyticsDestinationType: 'Dedicated'` does **not** persist on NSP diagnostic settings (a fresh GET always reads `null`). This is benign — NSP access logs are resource-specific and land in `NSPAccessLogs` regardless — so the bicep intentionally omits it.
 
 **Step-by-step**
 
@@ -393,17 +395,26 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 2. **Generate ALLOWED traffic** — open the Scenario 2 app (`foundry-demo-nsp-app-<suffix>`) and run a **Chat Test**. The App Service managed identity is permitted by the inbound rule → expect a successful reply. Each call is logged as `Approved`.
 
-3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity):
+3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity).
+   > **Prerequisite:** your user needs the **`Cognitive Services OpenAI User`** data-plane role on the Foundry, otherwise the data plane rejects you at the *RBAC* layer first (`401 — "...lacks the required data action..."`) and you never reach the perimeter check. `scripts/03-deploy-nsp-app` grants this to the interactive deployer automatically; data-plane RBAC can take a few minutes to take effect.
+
+   Use a real chat-completions POST with a current api-version — an older api-version can return a misleading `404` that masks the perimeter denial:
    ```bash
-   ENDPOINT="https://foundry-demo-ai-<suffix>.openai.azure.com"   # your Foundry endpoint
+   ENDPOINT="https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com"   # your Foundry endpoint
    TOKEN=$(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)
-   curl -s -o /dev/null -w "%{http_code}\n" \
+   curl -s -w "\n%{http_code}\n" -X POST \
      -H "Authorization: Bearer $TOKEN" \
-     "$ENDPOINT/openai/models?api-version=2024-10-01"
-   # Expect: 403 (blocked by the perimeter — you are not a managed identity)
+     -H "Content-Type: application/json" \
+     -d '{"messages":[{"role":"user","content":"hi"}],"max_completion_tokens":5}' \
+     "$ENDPOINT/openai/deployments/gpt-5-mini/chat/completions?api-version=2024-12-01-preview"
+   # Expect: 401 — body {"error":{"code":"PermissionDenied",
+   #                      "message":"Principal does not have access to API/Operation."}}
+   # This IS the NSP identity-perimeter denial: RBAC passed (you hold the role),
+   # but the user token is not a managed identity, so the perimeter blocks it.
+   # (Contrast: BEFORE Step B, the same call returns 200 — that's the before/after proof.)
    ```
 
-4. **Wait for ingestion** — allow **~5–10 minutes** for the evaluations to reach the workspace.
+4. **Wait for ingestion** — NSP access logs are **sampled every 30 minutes** and then take **up to ~15 minutes** to propagate, so allow a solid **~30–45 minutes** after generating traffic before expecting rows. An empty result before then is normal, not a failure.
 
 5. **Query the proof** — in the Azure Portal open the workspace → **Logs**, or run it from the CLI:
    ```bash
@@ -428,8 +439,9 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 **Caveats for logging**
 
-- **Ingestion latency:** log rows can take 5–10 minutes (occasionally longer) to appear — an empty result immediately after traffic is normal.
-- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you likely have no logged traffic yet (or the destination type isn't `Dedicated`).
+- **Ingestion latency:** NSP access logs are **sampled every 30 minutes**, then take up to ~15 min to propagate — so rows can take **~30–45 minutes** to appear. An empty result immediately after traffic is normal.
+- **`allLogs` collects nothing:** NSP does not support the `allLogs` category group; the diagnostic setting must enable each NSP category explicitly (the bicep does). A workspace that stays *completely* empty (no `NSPAccessLogs` table ever) is the classic symptom of an `allLogs`-based setting.
+- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you either have no logged traffic yet, are still inside the ~30–45 min window, or the setting was created with `allLogs`.
 - **Workspace placement:** for this demo the workspace lives *outside* the perimeter (simple and fully functional). For production you may add the workspace to the same NSP so the telemetry path is protected too.
 
 ---
@@ -441,7 +453,7 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 | **Isolation layer** | Network (VNet + private IP) | Identity (managed identity) |
 | **App Service VNet integration** | **Required** | **Not required** |
 | **Foundry public endpoint** | Disabled | Stays public in DNS (NSP-guarded) |
-| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (403) |
+| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (401) |
 | **Extra infra** | VNet, subnets, private endpoint, private DNS zone | Network Security Perimeter + profile + rule |
 | **DNS behavior** | Resolves to private `10.x` inside VNet | Unchanged public name |
 | **App Service** | `foundry-demo-app-<suffix>` | `foundry-demo-nsp-app-<suffix>` |
@@ -581,6 +593,8 @@ ms-foundry-pe-demo/
 │   ├── 03-deploy-nsp-app.ps1          # Scenario 2 Step A: PowerShell wrapper
 │   ├── 04-enforce-nsp.sh              # Scenario 2 Step B: Bash wrapper
 │   ├── 04-enforce-nsp.ps1             # Scenario 2 Step B: PowerShell wrapper
+│   ├── 99-teardown.sh                 # Teardown: delete the lab resource group (Bash)
+│   ├── 99-teardown.ps1                # Teardown: delete the lab resource group (PowerShell)
 │   └── .deploy-suffix                 # Generated suffix (gitignored, shared by both scenarios)
 ├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
@@ -617,9 +631,67 @@ curl "http://localhost:5000/api/ask?prompt=What%20is%202%2B2%3F"
 
 ---
 
+## Cost
+
+This lab is intentionally cheap — a single **Basic B1** App Service Plan is ~99% of
+the bill, and everything else is effectively free at idle. Approximate list prices
+(region `centralus`, pay-as-you-go, USD):
+
+| Resource | SKU | Cost model | Est. cost |
+|---|---|---|---|
+| App Service Plan | **B1 Linux** (1 plan, shared by both web apps) | fixed hourly | **~$0.075/hr → ~$55/mo** |
+| 2× App Services | run on the plan above | included | $0 extra |
+| Azure AI Foundry account | AIServices **S0** | no base fee | $0 idle |
+| `gpt-5-mini` deployment | **GlobalStandard**, capacity 1 | per-token consumption | ~$0 idle; pennies for demo calls |
+| Virtual Network | — | free | $0 |
+| Network Security Perimeter | preview | **free (preview)** | $0 |
+| Log Analytics Workspace | **PerGB2018** | per GB ingested (~$2.76/GB after 5 GB free) | ~$0–2/mo (NSP logs are tiny) |
+
+**Bottom line (if left running):**
+
+- **~$0.08 / hour**
+- **~$1.80 / day**
+- **~$55–60 / month**
+
+**To minimize cost:** tear the lab down when you're done (see [Clean Up](#clean-up)) —
+this drops spend to **$0**. The Foundry model is consumption-only (near $0 unless you
+send heavy traffic), NSP is free while in preview, and demo log ingestion is negligible.
+
+> Figures are approximate list prices and vary by region, currency, and actual
+> token/log usage. Verify against the
+> [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for a
+> precise quote.
+
+---
+
 ## Clean Up
 
-To delete all demo resources:
+To tear down **all** demo resources, use the teardown script. It reads the saved
+suffix from `scripts/.deploy-suffix`, shows what will be deleted, asks you to
+confirm, then deletes the whole resource group (which cascades every resource
+from phases 1–4, including the Network Security Perimeter and Log Analytics).
+
+```bash
+scripts/99-teardown.sh
+# non-interactive / CI:
+scripts/99-teardown.sh --yes --no-wait
+# target a specific subscription or suffix:
+scripts/99-teardown.sh --subscription <sub-id> --suffix <suffix>
+```
+
+```powershell
+pwsh scripts/99-teardown.ps1
+# non-interactive / CI:
+pwsh scripts/99-teardown.ps1 -Yes -NoWait
+# target a specific subscription or suffix:
+pwsh scripts/99-teardown.ps1 -Subscription <sub-id> -Suffix <suffix>
+```
+
+On success the script also clears `scripts/.deploy-suffix` so the next deployment
+generates a fresh suffix.
+
+<details>
+<summary>Manual one-liner (if you prefer not to use the script)</summary>
 
 ```bash
 # Read suffix from file
@@ -632,6 +704,8 @@ az group delete -n "rg-foundry-demo-$SUFFIX" --yes --no-wait
 $Suffix = (Get-Content scripts/.deploy-suffix -Raw).Trim()
 az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
 ```
+
+</details>
 
 ---
 

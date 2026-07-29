@@ -29,6 +29,19 @@ echo -e "\n▶ Ensuring Foundry public network access is enabled..."
 AI_RESOURCE_ID=$(az cognitiveservices account show --name "$AI_SERVICES_NAME" --resource-group "$RESOURCE_GROUP" --query id -o tsv)
 az resource update --ids "$AI_RESOURCE_ID" --set properties.publicNetworkAccess=Enabled --output none
 
+# --- Grant the interactive deployer data-plane access (for the laptop before/after
+#     test). Without the "Cognitive Services OpenAI User" role, a laptop token gets a
+#     misleading 401 "lacks the required data action" (RBAC) instead of the NSP denial. ---
+echo -e "\n▶ Granting the current user 'Cognitive Services OpenAI User' on the Foundry (for laptop testing)..."
+DEPLOYER_OBJECT_ID=$(az ad signed-in-user show --query id -o tsv 2>/dev/null || true)
+if [[ -z "${DEPLOYER_OBJECT_ID:-}" ]]; then
+    echo "  ⚠ Could not resolve the signed-in user (service principal?). Skipping — grant the role manually to run the laptop deny test."
+else
+    az role assignment create --assignee-object-id "$DEPLOYER_OBJECT_ID" --assignee-principal-type User \
+        --role "Cognitive Services OpenAI User" --scope "$AI_RESOURCE_ID" --output none 2>/dev/null || true
+    echo "  ✓ Role granted (data-plane RBAC can take a few minutes to take effect)."
+fi
+
 # --- Deploy Bicep (second App Service + RBAC) ---
 echo -e "\n▶ Deploying NSP App Service via Bicep..."
 az deployment group create \

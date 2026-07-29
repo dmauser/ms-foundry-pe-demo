@@ -96,23 +96,42 @@ resource law 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
 }
 
 // --- Diagnostic setting: stream ALL NSP access evaluations to the workspace ---
-// The 'allLogs' category group captures every inbound/outbound access decision
-// (both Approved and Denied) into the resource-specific NSPAccessLogs table.
-// This is the PROOF the perimeter is enforcing: the laptop (user token) lands
-// as ResultAction 'Denied'; the App Service (managed identity) as 'Approved'.
-// logAnalyticsDestinationType 'Dedicated' routes to the NSPAccessLogs table.
+// IMPORTANT: Network Security Perimeter does NOT support the 'allLogs' category
+// group. A diagnostic setting using categoryGroup 'allLogs' is accepted by ARM
+// but collects NOTHING (the NSP categories are not members of any group), so the
+// workspace stays empty. You MUST enable each NSP log category explicitly.
+// These categories capture every inbound/outbound access decision (Approved and
+// Denied) into the resource-specific NSPAccessLogs table. This is the PROOF the
+// perimeter is enforcing: the laptop (user token) lands as ResultAction 'Denied'
+// (NspPublicInboundResourceRulesDenied); the App Service managed identity as
+// 'Approved' (NspPublicInboundResourceRulesAllowed).
+// Note: 'Dedicated' (logAnalyticsDestinationType) does not persist on NSP
+// diagnostic settings; NSP access logs are resource-specific and always land in
+// the NSPAccessLogs table regardless, so it is intentionally omitted here.
+var nspLogCategories = [
+  'NspPublicInboundPerimeterRulesAllowed'
+  'NspPublicInboundPerimeterRulesDenied'
+  'NspPublicOutboundPerimeterRulesAllowed'
+  'NspPublicOutboundPerimeterRulesDenied'
+  'NspIntraPerimeterInboundAllowed'
+  'NspPublicInboundResourceRulesAllowed'
+  'NspPublicInboundResourceRulesDenied'
+  'NspPublicOutboundResourceRulesAllowed'
+  'NspPublicOutboundResourceRulesDenied'
+  'NspPrivateInboundAllowed'
+  'NspCrossPerimeterOutboundAllowed'
+  'NspCrossPerimeterInboundAllowed'
+  'NspOutboundAttempt'
+]
 resource nspDiagnostics 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
   name: 'nsp-access-logs'
   scope: nsp
   properties: {
     workspaceId: law.id
-    logAnalyticsDestinationType: 'Dedicated'
-    logs: [
-      {
-        categoryGroup: 'allLogs'
-        enabled: true
-      }
-    ]
+    logs: [for category in nspLogCategories: {
+      category: category
+      enabled: true
+    }]
   }
 }
 
