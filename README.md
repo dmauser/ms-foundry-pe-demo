@@ -18,7 +18,7 @@ Both Scenarios 1 & 2 use **Managed Identity (DefaultAzureCredential)** — no AP
 
 ### 📑 Navigation
 
-[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Scenario 3: Private Agent](#scenario-3--private-agent--virtual-network-injection) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
+[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Scenario 3: Private Agent](#scenario-3--private-agent--virtual-network-injection) · [Comparison](#scenario-comparison) · [Validation & Monitoring](#validation--monitoring-network-engineers) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
 
 ---
 
@@ -226,6 +226,8 @@ pwsh scripts/02-enable-private-access.ps1
 
 ## Scenario 1 — Validation Results
 
+> **🔍 Validate & monitor:** run `pwsh scripts/98-validate.ps1 -Scenario 1` (or `bash scripts/98-validate.sh -s 1`) for an automated pass/fail check, and see [`docs/network-validation.md`](docs/network-validation.md#scenario-1--private-endpoint--vnet-integration) for the config-assert table, traffic-flow hops, and troubleshooting. A deeper evidence log lives in [`docs/network-evidence.md`](docs/network-evidence.md).
+
 > **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/`). Wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. PowerShell (`.ps1`) equivalents exist for every script and share the same `scripts/.deploy-suffix` file.
 
 ### Expected Behavior
@@ -376,6 +378,8 @@ pwsh scripts/04-enforce-nsp.ps1
 - **Enforced mode:** applying `Enforced` immediately blocks non-allowed callers. Use `Learning` mode first if you want to observe traffic before enforcing.
 
 ### Validate NSP enforcement with diagnostic logs (Scenario 2)
+
+> **🔍 Validate & monitor:** run `pwsh scripts/98-validate.ps1 -Scenario 2` (or `bash scripts/98-validate.sh -s 2`) to assert the perimeter, association, access rule, access mode, and the `nsp-access-logs` diagnostic setting in one shot. The KQL walkthrough below is the monitoring proof; [`docs/network-validation.md`](docs/network-validation.md#scenario-2--network-security-perimeter--managed-identity) has the full config-assert table and troubleshooting.
 
 The perimeter's decisions are only trustworthy if you can *see* them. Step B (`infra/04-nsp-enforce.bicep`) now provisions:
 
@@ -559,6 +563,8 @@ over the VNet — while the same data is unreachable from the public internet.
 
 ### Validated end-to-end (DMAUSER-FDPO)
 
+> **🔍 Validate & monitor:** run `pwsh scripts/98-validate.ps1 -Scenario 3` (or `bash scripts/98-validate.sh -s 3`) to assert all four resources are `publicNetworkAccess=Disabled`, PEs are Approved, the 6 private DNS zones are VNet-linked, both subnet delegations are correct, and the WebApp is VNet-integrated. See [`docs/network-validation.md`](docs/network-validation.md#scenario-3--private-agent--virtual-network-injection) for the config-assert table, traffic-flow hops, monitoring stack, and troubleshooting — this is the scenario's dedicated field guide.
+
 The full **private data path** is verified working on a live deploy:
 
 | Proof point | Result |
@@ -621,6 +627,61 @@ The full **private data path** is verified working on a live deploy:
 | **Badge in UI** | 🔴 PUBLIC → 🟢 PRIVATE | 🛡️ NSP PERIMETER (Chat Test is the proof) | 🤖 PRIVATE AGENT (grounded citation is the proof) |
 
 All three scenarios authenticate with **Managed Identity** and require **no API keys**.
+
+---
+
+## Validation & Monitoring (Network Engineers)
+
+Everything above describes the *intended* network posture. This section is how a **network engineer proves it** — one runnable command plus a field guide that maps each scenario's config, traffic flow, monitoring surface, and troubleshooting.
+
+📄 **Full field guide:** [`docs/network-validation.md`](docs/network-validation.md) — per-scenario *config-to-assert* tables (Check / Command / Expected), numbered traffic-flow hops, the monitoring stack (Log Analytics, `NSPAccessLogs`, App Insights, PE connection state, DNS-from-Kudu), a cross-scenario verification matrix, and symptom → cause → fix troubleshooting.
+
+### The 60-second check
+
+Run the read-only validator — it asserts the intended posture for every deployed scenario and prints a green/red table. It makes **no changes** and is safe against a live lab.
+
+```bash
+# Bash (Linux / macOS / Cloud Shell / WSL)
+az login
+bash scripts/98-validate.sh              # every deployed scenario
+bash scripts/98-validate.sh -s 3         # only Scenario 3
+```
+
+```powershell
+# PowerShell (Windows / pwsh)
+az login
+pwsh scripts/98-validate.ps1             # every deployed scenario
+pwsh scripts/98-validate.ps1 -Scenario 3 # only Scenario 3
+```
+
+A scenario whose suffix file / resource group is absent is reported **SKIP** (not a failure). The exit code is non-zero only if a **critical** check FAILs — wire it into CI to catch drift (e.g. someone flips public access back on).
+
+```
+Scn  Check                                  Status Detail
+------------------------------------------------------------------------------------------
+S3   Storage publicNetworkAccess            PASS   Disabled
+S3   Cosmos DB publicNetworkAccess          PASS   Disabled
+S3   AI Search publicNetworkAccess          PASS   disabled
+S3   Foundry publicNetworkAccess            PASS   Disabled
+S3   Private endpoints approved             PASS   5 endpoint(s) Approved
+S3   Six private DNS zones present          PASS   6/6 core zones
+S3   DNS zones VNet-linked                  PASS   linked to agent-vnet-<id>
+S3   agent-subnet delegation                PASS   Microsoft.App/environments
+S3   app-subnet delegation                  PASS   Microsoft.Web/serverFarms
+S3   Test WebApp VNet-integrated            PASS   app-subnet
+
+Summary: 10 PASS, 0 FAIL, 0 WARN, 2 SKIP
+```
+
+### What each scenario asserts (at a glance)
+
+| Scenario | Critical asserts | Monitoring surface |
+|----------|------------------|--------------------|
+| **1 — Private Endpoint** | Foundry `publicNetworkAccess=Disabled`; PE Approved; `privatelink.openai`/`cognitiveservices` DNS zones VNet-linked → 10.x A-record; App Service VNet-integrated + `vnetRouteAllEnabled`; `/api/diagnostics` → `isPrivate:true` | Private DNS resolution, PE connection state, App Insights / diagnostics endpoint |
+| **2 — Network Security Perimeter** | Foundry `publicNetworkAccess=Disabled` + NSP-associated; NSP profile + access rule present; access mode (Learning vs **Enforced**); NSP app has **no** VNet integration; `nsp-access-logs` diag setting → `foundry-demo-law-<suffix>` | **`NSPAccessLogs`** table (Approved vs Denied `ResultAction`), Log Analytics KQL |
+| **3 — Private Agent** | Storage + Cosmos + AI Search + Foundry all `publicNetworkAccess=Disabled`; PEs Approved; **6** private DNS zones VNet-linked; `agent-subnet`→`Microsoft.App/environments`, `app-subnet`→`Microsoft.Web/serverFarms`; WebApp VNet-integrated; grounded answer with a **citation** = data-plane reachable only inside the VNet | App Insights, PE connection state, DNS-from-Kudu, AI Search / Cosmos / Storage metrics |
+
+See the [field guide](docs/network-validation.md) for the exact `az` command behind every assert, the traffic-flow hop maps, and troubleshooting. Scenario 1 also has a deep-dive evidence log in [`docs/network-evidence.md`](docs/network-evidence.md); Scenario 2's `NSPAccessLogs` KQL walkthrough is in [Validate NSP enforcement with diagnostic logs](#validate-nsp-enforcement-with-diagnostic-logs-scenario-2).
 
 ---
 
@@ -748,7 +809,8 @@ ms-foundry-secure-access/
 │   └── *.csproj                       # Project file
 ├── docs/
 │   ├── demo-walkthrough.md            # Step-by-step portal walkthrough
-│   ├── network-evidence.md            # Network diagnostics & evidence
+│   ├── network-evidence.md            # Scenario 1 network diagnostics & evidence
+│   ├── network-validation.md          # Network-engineer field guide: validate + monitor all 3 scenarios
 │   └── diagrams/                      # Architecture diagrams
 ├── scripts/
 │   ├── 01-deploy-public-access.sh     # Scenario 1 Phase 1: Bash wrapper
@@ -761,6 +823,8 @@ ms-foundry-secure-access/
 │   ├── 04-enforce-nsp.ps1             # Scenario 2 Step B: PowerShell wrapper
 │   ├── 05-deploy-private-agent.sh     # Scenario 3: Bash wrapper (self-contained)
 │   ├── 05-deploy-private-agent.ps1    # Scenario 3: PowerShell wrapper (self-contained)
+│   ├── 98-validate.sh                 # Read-only validator (Bash): -s 1|2|3|all pass/fail table
+│   ├── 98-validate.ps1                # Read-only validator (PowerShell): -Scenario 1|2|3|all
 │   ├── 99-teardown.sh                 # Teardown (Bash): -Scenario nsp|agent, purges Foundry
 │   ├── 99-teardown.ps1                # Teardown (PowerShell): -Scenario nsp|agent, purges Foundry
 │   ├── .deploy-suffix                 # Generated suffix (gitignored, Scenarios 1 & 2)
