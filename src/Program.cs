@@ -267,9 +267,15 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 .chat-input input:focus{outline:none;border-color:#4fc3f7}
 .chat-response{background:#0d1b2a;border-radius:8px;padding:1rem;min-height:60px;font-size:.88rem;line-height:1.5;white-space:pre-wrap;border:1px solid #0f3460}
 .chat-meta{margin-top:.5rem;font-size:.75rem;color:#607d8b}
+.examples{display:flex;flex-wrap:wrap;gap:.4rem;margin:.75rem 0 1rem}
+.examples .lbl{width:100%;font-size:.75rem;color:#607d8b;margin-bottom:.15rem}
+.chip{background:#0d2a4a;border:1px solid #0f3460;color:#90caf9;padding:.35rem .7rem;border-radius:16px;font-size:.78rem;cursor:pointer;transition:background .2s,border-color .2s}
+.chip:hover{background:#123a63;border-color:#4fc3f7}
 .error{color:#ef5350}
 .spinner{display:inline-block;width:14px;height:14px;border:2px solid #4fc3f7;border-top-color:transparent;border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
+.flow svg{width:100%;height:auto;max-width:880px;display:block;margin:.25rem auto 0}
+.flow svg text{font-family:'Segoe UI',system-ui,sans-serif}
 </style>
 </head>
 <body>
@@ -314,7 +320,8 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <div class="info-grid">
     <span class="label">Agent status:</span><span class="value" id="aReady">—</span>
     <span class="label">Agent ID:</span><span class="value" id="aAgentId">—</span>
-    <span class="label">Vector store:</span><span class="value" id="aVectorStore">—</span>
+    <span class="label">Search index:</span><span class="value" id="aIndex">—</span>
+    <span class="label">Grounding:</span><span class="value" id="aGrounding">—</span>
     <span class="label">Manuals:</span><span class="value" id="aFiles">—</span>
     <span class="label">Data path:</span><span class="value" id="aDataPath">Private (VNet-injected)</span>
   </div>
@@ -324,12 +331,98 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <button class="btn" id="btnAgentInfo" onclick="loadAgentInfo()">🔄 Refresh</button>
 </div>
 
+<!-- Traffic Flow Diagram (Scenario 3 only) -->
+<div class="panel flow" id="flowPanel" style="display:none">
+  <h2>🗺️ Traffic Flow — Private Data Path</h2>
+  <svg viewBox="0 0 880 470" role="img" aria-label="Scenario 3 private traffic flow diagram">
+    <defs>
+      <marker id="arrOk" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L8,3 L0,6 Z" fill="#66bb6a"/>
+      </marker>
+      <marker id="arrBlock" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L8,3 L0,6 Z" fill="#ef5350"/>
+      </marker>
+    </defs>
+
+    <!-- VNet boundary -->
+    <rect x="225" y="25" width="635" height="415" rx="12" fill="#0f1f3a" stroke="#7e57c2" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="240" y="47" fill="#b39ddb" font-size="13" font-weight="600">Virtual Network — private endpoints · public access disabled</text>
+
+    <!-- User browser -->
+    <rect x="25" y="185" width="150" height="90" rx="10" fill="#263238" stroke="#90a4ae" stroke-width="1.5"/>
+    <text x="100" y="222" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🧑 User</text>
+    <text x="100" y="246" fill="#b0bec5" font-size="12" text-anchor="middle">Browser</text>
+
+    <!-- Laptop (blocked) -->
+    <rect x="25" y="340" width="150" height="85" rx="10" fill="#3a1414" stroke="#ef5350" stroke-width="1.5"/>
+    <text x="100" y="376" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">💻 Laptop</text>
+    <text x="100" y="400" fill="#ef9a9a" font-size="12" text-anchor="middle">direct → Foundry</text>
+
+    <!-- Test WebApp -->
+    <rect x="250" y="180" width="170" height="100" rx="10" fill="#0d2a4a" stroke="#4fc3f7" stroke-width="1.5"/>
+    <text x="335" y="214" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🌐 Test WebApp</text>
+    <text x="335" y="236" fill="#90caf9" font-size="12" text-anchor="middle">app-subnet</text>
+    <text x="335" y="254" fill="#90caf9" font-size="12" text-anchor="middle">(VNet-integrated)</text>
+
+    <!-- AI Search -->
+    <rect x="585" y="55" width="265" height="78" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="717" y="83" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🔍 Azure AI Search</text>
+    <text x="717" y="103" fill="#b0bec5" font-size="11" text-anchor="middle">private endpoint</text>
+    <text x="717" y="120" fill="#a5d6a7" font-size="11" text-anchor="middle">BM25 index · manuals-idx</text>
+
+    <!-- Blob Storage -->
+    <rect x="585" y="196" width="265" height="78" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="717" y="224" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">📦 Blob Storage</text>
+    <text x="717" y="244" fill="#b0bec5" font-size="11" text-anchor="middle">private endpoint</text>
+    <text x="717" y="261" fill="#a5d6a7" font-size="11" text-anchor="middle">appliance manuals (3)</text>
+
+    <!-- Foundry Agent + AOAI -->
+    <rect x="585" y="337" width="265" height="78" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="717" y="365" fill="#e0e0e0" font-size="13.5" font-weight="600" text-anchor="middle">🤖 Foundry Agent + Azure OpenAI</text>
+    <text x="717" y="385" fill="#b0bec5" font-size="11" text-anchor="middle">private endpoint · gpt-5-mini</text>
+    <text x="717" y="402" fill="#a5d6a7" font-size="11" text-anchor="middle">no tools · context injected</text>
+
+    <!-- Browser -> WebApp (public inbound, allowed) -->
+    <line x1="175" y1="230" x2="246" y2="230" stroke="#90caf9" stroke-width="2" marker-end="url(#arrOk)"/>
+    <rect x="176" y="205" width="72" height="15" fill="#16213e"/>
+    <text x="211" y="217" fill="#90caf9" font-size="10" text-anchor="middle">HTTPS ▶</text>
+
+    <!-- Laptop -> VNet boundary (blocked) -->
+    <line x1="175" y1="382" x2="221" y2="382" stroke="#ef5350" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrBlock)"/>
+    <text x="235" y="389" fill="#ef5350" font-size="18" font-weight="700" text-anchor="middle">✕</text>
+    <text x="150" y="420" fill="#ef9a9a" font-size="10" text-anchor="middle">blocked — public access disabled</text>
+
+    <!-- WebApp -> targets (private, allowed) -->
+    <line x1="420" y1="205" x2="581" y2="98"  stroke="#66bb6a" stroke-width="2" marker-end="url(#arrOk)"/>
+    <line x1="420" y1="235" x2="581" y2="235" stroke="#66bb6a" stroke-width="2" marker-end="url(#arrOk)"/>
+    <line x1="420" y1="262" x2="581" y2="372" stroke="#66bb6a" stroke-width="2" marker-end="url(#arrOk)"/>
+
+    <rect x="444" y="139" width="112" height="16" rx="4" fill="#16213e"/>
+    <text x="500" y="151" fill="#a5d6a7" font-size="11" text-anchor="middle">① retrieve (BM25)</text>
+    <rect x="454" y="219" width="92" height="16" rx="4" fill="#16213e"/>
+    <text x="500" y="231" fill="#a5d6a7" font-size="11" text-anchor="middle">② read manual</text>
+    <rect x="448" y="305" width="104" height="16" rx="4" fill="#16213e"/>
+    <text x="500" y="317" fill="#a5d6a7" font-size="11" text-anchor="middle">③ grounded run</text>
+  </svg>
+  <p class="chat-meta">The browser reaches only the VNet-integrated WebApp over public HTTPS. The WebApp then ① retrieves the best-matching manual from private AI Search (BM25), ② reads manuals from private Blob Storage, and ③ runs the no-tools agent on Azure OpenAI — all over private endpoints. <span style="color:#ef9a9a">Green = private endpoint (allowed); red dashed = direct public access, blocked because public network access is disabled.</span></p>
+</div>
+
 <!-- Chat Test Panel -->
 <div class="panel">
   <h2>💬 Chat Test</h2>
   <div class="chat-input">
     <input type="text" id="promptInput" placeholder="Type a prompt to send to Azure OpenAI..." onkeydown="if(event.key==='Enter')sendChat()"/>
     <button class="btn" id="btnChat" onclick="sendChat()">Send</button>
+  </div>
+  <div class="examples" id="examples" style="display:none">
+    <span class="lbl">Try one of these — each is answered from the private appliance manuals:</span>
+    <span class="chip" onclick="askExample(this)">Why is my washer showing error E4?</span>
+    <span class="chip" onclick="askExample(this)">My dishwasher won't drain — what does code C2 mean?</span>
+    <span class="chip" onclick="askExample(this)">The DryMaster dryer isn't heating. What should I check?</span>
+    <span class="chip" onclick="askExample(this)">How often should I clean the washer's drain pump filter?</span>
+    <span class="chip" onclick="askExample(this)">What's the #1 cause of long dry times on the DryMaster 500?</span>
+    <span class="chip" onclick="askExample(this)">My dishwasher shows leak error C3 — what do I do?</span>
+    <span class="chip" onclick="askExample(this)">Which detergent should I use to avoid oversudsing?</span>
   </div>
   <div class="chat-response" id="chatResponse">Response will appear here...</div>
   <div class="chat-meta" id="chatMeta"></div>
@@ -360,6 +453,8 @@ function applyAgent(){
   document.getElementById('pageSubtitle').textContent='A Foundry Agent injected into a VNet, grounding answers on private appliance manuals in Storage + AI Search — everything private, public access disabled';
   document.getElementById('scenarioNote').innerHTML='This WebApp is VNet-integrated on <code>app-subnet</code> — the only client that can reach the private agent. Seed the manuals, then ask <em>“why is my washer showing error E4?”</em> for a grounded answer with a citation to the private manual.';
   document.getElementById('agentPanel').style.display='block';
+  document.getElementById('flowPanel').style.display='block';
+  document.getElementById('examples').style.display='flex';
   document.getElementById('promptInput').placeholder='e.g. Why is my washer showing error E4?';
   loadAgentInfo();
 }
@@ -371,7 +466,8 @@ async function loadAgentInfo(){
     const d=await r.json();
     document.getElementById('aReady').textContent=d.ready?'Ready ✓':'Not seeded';
     document.getElementById('aAgentId').textContent=d.agentId||'—';
-    document.getElementById('aVectorStore').textContent=d.vectorStoreId||'—';
+    document.getElementById('aIndex').textContent=d.index||'—';
+    document.getElementById('aGrounding').textContent=d.grounding||'—';
     document.getElementById('aFiles').textContent=(d.files&&d.files.length)?d.files.join(', '):'—';
     if(d.ready){badge.className='badge badge-private';badge.textContent='🟢 AGENT READY';}
     else{badge.className='badge badge-unknown';badge.textContent='🌱 NEEDS SEED';}
@@ -475,6 +571,11 @@ async function runFoundryStatus(){
     document.getElementById('foundryNote').innerHTML='<span class="error">'+e.message+'</span>';
   }
   btn.disabled=false;
+}
+
+function askExample(el){
+  document.getElementById('promptInput').value=el.textContent;
+  sendChat();
 }
 
 async function sendChat(){
