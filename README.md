@@ -17,7 +17,7 @@ Both scenarios use **Managed Identity (DefaultAzureCredential)** — no API keys
 
 ### 📑 Navigation
 
-[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Clean Up](#clean-up) · [Resources](#resources)
+[Quick Facts](#quick-facts) · [Scenario 1: Private Endpoint](#scenario-1--private-endpoint--vnet-integration) · [Scenario 2: Network Security Perimeter](#scenario-2--network-security-perimeter--managed-identity) · [Comparison](#scenario-comparison) · [Prerequisites](#prerequisites) · [Quick Start](#quick-start-local-development) · [App Config](#app-configuration) · [API Endpoints](#api-endpoints) · [Security](#security-notes) · [Project Structure](#project-structure) · [Cost](#cost) · [Clean Up](#clean-up) · [Resources](#resources)
 
 ---
 
@@ -628,6 +628,39 @@ curl http://localhost:5000/api/diagnostics | jq
 # Chat (requires public access + az login)
 curl "http://localhost:5000/api/ask?prompt=What%20is%202%2B2%3F"
 ```
+
+---
+
+## Cost
+
+This lab is intentionally cheap — a single **Basic B1** App Service Plan is ~99% of
+the bill, and everything else is effectively free at idle. Approximate list prices
+(region `centralus`, pay-as-you-go, USD):
+
+| Resource | SKU | Cost model | Est. cost |
+|---|---|---|---|
+| App Service Plan | **B1 Linux** (1 plan, shared by both web apps) | fixed hourly | **~$0.075/hr → ~$55/mo** |
+| 2× App Services | run on the plan above | included | $0 extra |
+| Azure AI Foundry account | AIServices **S0** | no base fee | $0 idle |
+| `gpt-5-mini` deployment | **GlobalStandard**, capacity 1 | per-token consumption | ~$0 idle; pennies for demo calls |
+| Virtual Network | — | free | $0 |
+| Network Security Perimeter | preview | **free (preview)** | $0 |
+| Log Analytics Workspace | **PerGB2018** | per GB ingested (~$2.76/GB after 5 GB free) | ~$0–2/mo (NSP logs are tiny) |
+
+**Bottom line (if left running):**
+
+- **~$0.08 / hour**
+- **~$1.80 / day**
+- **~$55–60 / month**
+
+**To minimize cost:** tear the lab down when you're done (see [Clean Up](#clean-up)) —
+this drops spend to **$0**. The Foundry model is consumption-only (near $0 unless you
+send heavy traffic), NSP is free while in preview, and demo log ingestion is negligible.
+
+> Figures are approximate list prices and vary by region, currency, and actual
+> token/log usage. Verify against the
+> [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/) for a
+> precise quote.
 
 ---
 
