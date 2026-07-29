@@ -8,6 +8,24 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# --- Azure Authentication Check ---
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "🔐 Verifying Azure authentication..."
+if ! az account show > /dev/null 2>&1; then
+    echo "❌ Not logged in to Azure CLI. Run: az login"
+    exit 1
+fi
+ACCT_USER=$(az account show --query user.name -o tsv)
+ACCT_NAME=$(az account show --query name -o tsv)
+ACCT_ID=$(az account show --query id -o tsv)
+echo "  ✓ Logged in as : $ACCT_USER"
+echo "  📋 Subscription : $ACCT_NAME"
+echo "  🆔 Subscription ID: $ACCT_ID"
+echo "════════════════════════════════════════════════════════════════"
+echo "⏳ Proceeding in 5 seconds... Press Ctrl+C to abort."
+sleep 5
+
 # --- Load suffix ---
 SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix"
 if [[ ! -f "$SUFFIX_FILE" ]]; then
