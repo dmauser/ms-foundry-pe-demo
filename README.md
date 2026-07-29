@@ -274,7 +274,7 @@ pwsh scripts/02-enable-private-access.ps1
 Scenario 2 uses a `Microsoft.Network/networkSecurityPerimeters` resource with a single **inbound access rule of type _Subscriptions_**. Per Azure NSP semantics, a Subscriptions rule *"allows inbound access authenticated using any managed identity from the subscription."* The Foundry is associated with the perimeter in **`Enforced`** mode:
 
 - ✅ **App Service** (system-assigned MI in the subscription) → **allowed**
-- ❌ **Laptop** (user token from `az login`, not a managed identity) → **blocked (403)**
+- ❌ **Laptop** (user token from `az login`, not a managed identity) → **blocked (401, NSP identity denial)**
 
 No VNet, no private endpoint, no private DNS zone required.
 
@@ -284,7 +284,7 @@ No VNet, no private endpoint, no private DNS zone required.
 graph LR
     subgraph Enforced["🛡️ NSP ENFORCED (identity perimeter)"]
         direction TB
-        User["🌐 User/Laptop<br/>az login user token<br/>❌ BLOCKED (403)"] -.->|✗ not a managed identity| Foundry["🔒 Azure AI Foundry<br/>public DNS, NSP-guarded"]
+        User["🌐 User/Laptop<br/>az login user token<br/>❌ BLOCKED (401)"] -.->|✗ not a managed identity| Foundry["🔒 Azure AI Foundry<br/>public DNS, NSP-guarded"]
         NspApp["App Service (no VNet)<br/>foundry-demo-nsp-app<br/>System-assigned MI ✅"] -->|managed identity<br/>from subscription| Foundry
         NSP["Network Security Perimeter<br/>Inbound rule: Subscriptions = this sub"] -.->|Enforced association| Foundry
     end
@@ -306,7 +306,7 @@ graph LR
 >
 > ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 2 (`04-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 2 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
 >
-> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of `403`). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
+> 🧩 **NSP is public preview and requires two subscription feature flags** to be registered, or the perimeter provisions but the data plane does **not** enforce it (user tokens keep getting `200` instead of the `401` identity denial). **Step B (`04-enforce-nsp`) registers these automatically**, but you can pre-register them:
 > ```bash
 > az feature registration create --namespace Microsoft.CognitiveServices --name OpenAI.NspPreview
 > az feature registration create --namespace Microsoft.Network --name AllowNSPInPublicPreview
@@ -353,7 +353,7 @@ pwsh scripts/04-enforce-nsp.ps1
 
 **After Step B:**
 - ✅ Chat works from the App Service (managed identity allowed by the perimeter)
-- ❌ Chat **fails** from the laptop (user token is not a managed identity → 403)
+- ❌ Chat **fails** from the laptop (user token is not a managed identity → 401, NSP denial)
 - The endpoint DNS is still public — the block is at the identity layer
 
 > **Note:** data-plane enforcement can take a few minutes to propagate after Step B. If the laptop deny test still returns `200`, wait ~3 minutes and retry.
@@ -363,7 +363,7 @@ pwsh scripts/04-enforce-nsp.ps1
 | Actor | Step A (public, no NSP) | Step B (NSP Enforced) | Why |
 |-------|-------------------------|-----------------------|-----|
 | **App Service** (system MI) — Chat | ✅ Yes | ✅ Yes | Managed identity from the subscription is allowed by the inbound rule |
-| **Laptop** (user `az login`) — Chat | ✅ Yes | ❌ No (403) | User token is not a managed identity → denied by the perimeter |
+| **Laptop** (user `az login`) — Chat | ✅ Yes | ❌ No (401) | User token is not a managed identity → denied by the perimeter |
 | **Endpoint DNS** | Public | Public (unchanged) | NSP gates by identity, not by network/DNS |
 | **VNet Integration** | Not required | Not required | The whole point of Scenario 2 |
 
@@ -395,17 +395,23 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 2. **Generate ALLOWED traffic** — open the Scenario 2 app (`foundry-demo-nsp-app-<suffix>`) and run a **Chat Test**. The App Service managed identity is permitted by the inbound rule → expect a successful reply. Each call is logged as `Approved`.
 
-3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity). Use a real chat-completions POST with a current api-version — an older api-version can return a misleading `404` that masks the perimeter denial:
+3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity).
+   > **Prerequisite:** your user needs the **`Cognitive Services OpenAI User`** data-plane role on the Foundry, otherwise the data plane rejects you at the *RBAC* layer first (`401 — "...lacks the required data action..."`) and you never reach the perimeter check. `scripts/03-deploy-nsp-app` grants this to the interactive deployer automatically; data-plane RBAC can take a few minutes to take effect.
+
+   Use a real chat-completions POST with a current api-version — an older api-version can return a misleading `404` that masks the perimeter denial:
    ```bash
    ENDPOINT="https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com"   # your Foundry endpoint
    TOKEN=$(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)
-   curl -s -o /dev/null -w "%{http_code}\n" -X POST \
+   curl -s -w "\n%{http_code}\n" -X POST \
      -H "Authorization: Bearer $TOKEN" \
      -H "Content-Type: application/json" \
      -d '{"messages":[{"role":"user","content":"hi"}],"max_completion_tokens":5}' \
      "$ENDPOINT/openai/deployments/gpt-5-mini/chat/completions?api-version=2024-12-01-preview"
-   # Expect: 403 — body "Request is rejected by NetworkSecurityPerimeter",
-   #         response header policy-id: ThrowExceptionDueToTrafficDenied
+   # Expect: 401 — body {"error":{"code":"PermissionDenied",
+   #                      "message":"Principal does not have access to API/Operation."}}
+   # This IS the NSP identity-perimeter denial: RBAC passed (you hold the role),
+   # but the user token is not a managed identity, so the perimeter blocks it.
+   # (Contrast: BEFORE Step B, the same call returns 200 — that's the before/after proof.)
    ```
 
 4. **Wait for ingestion** — NSP access logs are **sampled every 30 minutes** and then take **up to ~15 minutes** to propagate, so allow a solid **~30–45 minutes** after generating traffic before expecting rows. An empty result before then is normal, not a failure.
@@ -447,7 +453,7 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 | **Isolation layer** | Network (VNet + private IP) | Identity (managed identity) |
 | **App Service VNet integration** | **Required** | **Not required** |
 | **Foundry public endpoint** | Disabled | Stays public in DNS (NSP-guarded) |
-| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (403) |
+| **What blocks the laptop** | Cannot route to the private IP | Not a managed identity (401) |
 | **Extra infra** | VNet, subnets, private endpoint, private DNS zone | Network Security Perimeter + profile + rule |
 | **DNS behavior** | Resolves to private `10.x` inside VNet | Unchanged public name |
 | **App Service** | `foundry-demo-app-<suffix>` | `foundry-demo-nsp-app-<suffix>` |

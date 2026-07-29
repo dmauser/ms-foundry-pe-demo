@@ -28,6 +28,20 @@ $AiResourceId = (az cognitiveservices account show --name $AiServicesName --reso
 az resource update --ids $AiResourceId --set properties.publicNetworkAccess=Enabled --output none
 if ($LASTEXITCODE -ne 0) { throw "Failed to enable public access" }
 
+# --- Grant the interactive deployer data-plane access (so the laptop before/after
+#     test is meaningful). NSP gates on identity, but the data plane still enforces
+#     RBAC first: without this role a laptop token returns a misleading 401
+#     "lacks the required data action" (RBAC) instead of the NSP identity denial. ---
+Write-Host "`n▶ Granting the current user 'Cognitive Services OpenAI User' on the Foundry (for laptop testing)..."
+$DeployerObjectId = (az ad signed-in-user show --query id -o tsv 2>$null)
+if ([string]::IsNullOrWhiteSpace($DeployerObjectId)) {
+    Write-Host "  ⚠ Could not resolve the signed-in user (service principal?). Skipping — grant the role manually to run the laptop deny test." -ForegroundColor Yellow
+} else {
+    az role assignment create --assignee-object-id $DeployerObjectId --assignee-principal-type User `
+        --role "Cognitive Services OpenAI User" --scope $AiResourceId --output none 2>$null
+    Write-Host "  ✓ Role granted (data-plane RBAC can take a few minutes to take effect)."
+}
+
 # --- Deploy Bicep (second App Service + RBAC) ---
 Write-Host "`n▶ Deploying NSP App Service via Bicep..."
 $BicepFile = Join-Path $RepoRoot "infra\03-nsp-app-service.bicep"
