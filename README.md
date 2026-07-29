@@ -587,6 +587,8 @@ ms-foundry-pe-demo/
 │   ├── 03-deploy-nsp-app.ps1          # Scenario 2 Step A: PowerShell wrapper
 │   ├── 04-enforce-nsp.sh              # Scenario 2 Step B: Bash wrapper
 │   ├── 04-enforce-nsp.ps1             # Scenario 2 Step B: PowerShell wrapper
+│   ├── 99-teardown.sh                 # Teardown: delete the lab resource group (Bash)
+│   ├── 99-teardown.ps1                # Teardown: delete the lab resource group (PowerShell)
 │   └── .deploy-suffix                 # Generated suffix (gitignored, shared by both scenarios)
 ├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
@@ -625,7 +627,32 @@ curl "http://localhost:5000/api/ask?prompt=What%20is%202%2B2%3F"
 
 ## Clean Up
 
-To delete all demo resources:
+To tear down **all** demo resources, use the teardown script. It reads the saved
+suffix from `scripts/.deploy-suffix`, shows what will be deleted, asks you to
+confirm, then deletes the whole resource group (which cascades every resource
+from phases 1–4, including the Network Security Perimeter and Log Analytics).
+
+```bash
+scripts/99-teardown.sh
+# non-interactive / CI:
+scripts/99-teardown.sh --yes --no-wait
+# target a specific subscription or suffix:
+scripts/99-teardown.sh --subscription <sub-id> --suffix <suffix>
+```
+
+```powershell
+pwsh scripts/99-teardown.ps1
+# non-interactive / CI:
+pwsh scripts/99-teardown.ps1 -Yes -NoWait
+# target a specific subscription or suffix:
+pwsh scripts/99-teardown.ps1 -Subscription <sub-id> -Suffix <suffix>
+```
+
+On success the script also clears `scripts/.deploy-suffix` so the next deployment
+generates a fresh suffix.
+
+<details>
+<summary>Manual one-liner (if you prefer not to use the script)</summary>
 
 ```bash
 # Read suffix from file
@@ -638,6 +665,8 @@ az group delete -n "rg-foundry-demo-$SUFFIX" --yes --no-wait
 $Suffix = (Get-Content scripts/.deploy-suffix -Raw).Trim()
 az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
 ```
+
+</details>
 
 ---
 
