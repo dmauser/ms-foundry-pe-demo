@@ -1,4 +1,4 @@
-# 🔒 Azure AI Foundry — Network Security Demo (Private Endpoint & Network Security Perimeter)
+# 🔒 Azure AI Foundry — Secure Access Demo (Private Endpoint, Network Security Perimeter & VNet-Injected Agent)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-blue)](https://dotnet.microsoft.com/download/dotnet/8.0)
@@ -133,8 +133,8 @@ winget install Microsoft.PowerShell
 ### 1. Clone and prepare environment
 
 ```bash
-git clone https://github.com/dmauser/ms-foundry-pe-demo.git
-cd ms-foundry-pe-demo
+git clone https://github.com/dmauser/ms-foundry-secure-access.git
+cd ms-foundry-secure-access
 az login
 az account set --subscription "YOUR_SUBSCRIPTION_ID"
 ```
@@ -729,7 +729,7 @@ On error (network, auth, model):
 ## Project Structure
 
 ```
-ms-foundry-pe-demo/
+ms-foundry-secure-access/
 ├── README.md                          # This file
 ├── infra/
 │   ├── 01-public-access.bicep         # Scenario 1 Phase 1: VNet, AI Services, App Service, RBAC

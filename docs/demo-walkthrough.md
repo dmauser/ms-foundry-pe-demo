@@ -30,7 +30,7 @@ This demo has been modernized to align with enterprise security best practices:
 
 For an interactive visual breakdown of the architecture, see:
 - **Mermaid Diagram** (in README.md) — Quick reference showing both phases
-- **Interactive Diagram** — 🔗 **[Open in draw.io](https://app.diagrams.net/?url=https://raw.githubusercontent.com/dmauser/ms-foundry-pe-demo/master/docs/architecture.drawio)** — Two pages (Before/After) with detailed resource layout
+- **Interactive Diagram** — 🔗 **[Open in draw.io](https://app.diagrams.net/?url=https://raw.githubusercontent.com/dmauser/ms-foundry-secure-access/master/docs/architecture.drawio)** — Two pages (Before/After) with detailed resource layout
 
 ### Before: Public Internet Access
 
@@ -159,8 +159,8 @@ For an interactive visual breakdown of the architecture, see:
 **Bash:**
 ```bash
 # Clone repo
-git clone https://github.com/dmauser/ms-foundry-pe-demo.git
-cd ms-foundry-pe-demo
+git clone https://github.com/dmauser/ms-foundry-secure-access.git
+cd ms-foundry-secure-access
 
 # Log in to Azure
 az login
@@ -173,8 +173,8 @@ bash scripts/01-deploy-public-access.sh
 **PowerShell:**
 ```powershell
 # Clone repo
-git clone https://github.com/dmauser/ms-foundry-pe-demo.git
-cd ms-foundry-pe-demo
+git clone https://github.com/dmauser/ms-foundry-secure-access.git
+cd ms-foundry-secure-access
 
 # Log in to Azure
 az login
@@ -527,7 +527,7 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 - **Network Evidence Reference:** See `docs/network-evidence.md` for detailed DNS resolution chains
 - **App Source Code:** `src/Program.cs` — Diagnostics API, Chat API, HTML UI with real-time badge
 - **Architecture Decisions:** `.squad/decisions.md` — Team findings and design decisions
-- **GitHub Repo:** https://github.com/dmauser/ms-foundry-pe-demo
+- **GitHub Repo:** https://github.com/dmauser/ms-foundry-secure-access
 
 ---
 

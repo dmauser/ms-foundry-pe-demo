@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This is **ms-foundry-pe-demo**, a project managed by [Squad](https://github.com/bradygaster/squad) — an AI team orchestration framework. The repo uses Squad's multi-agent coordination system with persistent team state in `.squad/`.
+This is **ms-foundry-secure-access**, a project managed by [Squad](https://github.com/bradygaster/squad) — an AI team orchestration framework. The repo uses Squad's multi-agent coordination system with persistent team state in `.squad/`.
 
 ## Architecture
 
