@@ -519,6 +519,12 @@ Mitigations baked in: **Cosmos = serverless** (~$0 idle), **Storage = pennies**,
 4. **Isolation proof** — the app (in the VNet) works; hitting the Foundry/agent endpoint
    directly from your **laptop is blocked** (public access disabled).
 
+> **In-app UI helpers.** The Scenario 3 WebApp renders an **interactive traffic-flow
+> diagram** (the private data path above, drawn inline) plus a row of **clickable example
+> questions** under the Chat Test panel — each chip auto-fills and sends a manual-grounded
+> query (e.g. washer *E4*, dishwasher *C2* drain fault, DryMaster not heating), so you can
+> prove the private RAG path without typing.
+
 ### Deploy (Scenario 3)
 
 > **Prerequisite:** completely **self-contained** — its own resource group
