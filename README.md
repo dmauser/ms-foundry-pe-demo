@@ -471,12 +471,12 @@ showing error E4?"* → the answer comes back **with a citation** to the private
 ```mermaid
 flowchart LR
     laptop["💻 Laptop<br/>(user token)"]
-    subgraph vnet["VNet 192.168.0.0/16 (westus3)"]
-        subgraph appsub["app-subnet .2.0/24<br/>(Microsoft.Web delegation)"]
-            webapp["🌐 Test WebApp<br/>(VNet-integrated, system MI)"]
+    subgraph vnet["VNet 192.168.0.0/16 · westus3"]
+        subgraph agentsub["agent-subnet .0.0/24 (Microsoft.App)"]
+            agent["🤖 Foundry Agent<br/>network-injected"]
         end
-        subgraph agentsub["agent-subnet .0.0/24<br/>(Microsoft.App delegation)"]
-            agent["🤖 Foundry Agent<br/>(network-injected)"]
+        subgraph appsub["app-subnet .2.0/24 (Microsoft.Web)"]
+            webapp["🌐 Test WebApp<br/>VNet-integrated · system MI"]
         end
         subgraph pesub["pe-subnet .1.0/24 (private endpoints)"]
             peF["PE → Foundry"]
@@ -485,17 +485,17 @@ flowchart LR
             peR["PE → AI Search"]
         end
     end
-    foundry["🧠 Foundry account + project<br/>(public access DISABLED)"]
-    storage["📦 Storage (manuals)<br/>public access DISABLED"]
-    cosmos["🗄️ Cosmos DB serverless (threads)<br/>public access DISABLED"]
-    search["🔎 AI Search Basic (vectors)<br/>public access DISABLED"]
+    foundry["🧠 Foundry account + project<br/>public access DISABLED"]
+    storage["📦 Storage · manuals<br/>public access DISABLED"]
+    cosmos["🗄️ Cosmos DB serverless · threads<br/>public access DISABLED"]
+    search["🔎 AI Search Basic · vectors<br/>public access DISABLED"]
 
+    laptop -->|"✅ public front door"| webapp
     webapp -->|seed + ask| peF --> foundry
     webapp -->|BM25 retrieve| peR --> search
     webapp -->|manuals| peS --> storage
     agent -->|threads| peC --> cosmos
     laptop -.->|"❌ blocked (no route to private IP)"| foundry
-    laptop -->|"✅ public front door"| webapp
 ```
 
 ### Key constraint you must accept — cost
@@ -939,7 +939,7 @@ MIT — See [LICENSE](./LICENSE) for details.
 
 ## Contributing
 
-This is a demo repository maintained by the Azure AI team. For bugs or feedback, please open an issue.
+This is a personal demo repository. For bugs or feedback, please open an issue.
 
 ---
 
