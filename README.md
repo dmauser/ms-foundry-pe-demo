@@ -378,11 +378,13 @@ pwsh scripts/04-enforce-nsp.ps1
 The perimeter's decisions are only trustworthy if you can *see* them. Step B (`infra/04-nsp-enforce.bicep`) now provisions:
 
 - a **Log Analytics workspace** — `foundry-demo-law-<suffix>`
-- a **diagnostic setting** on the NSP (`nsp-access-logs`) streaming the `allLogs` category group with **resource-specific (Dedicated)** destination, so every access evaluation lands in the **`NSPAccessLogs`** table.
+- a **diagnostic setting** on the NSP (`nsp-access-logs`) with **all 13 NSP log categories enabled explicitly**, so every access evaluation lands in the resource-specific **`NSPAccessLogs`** table.
 
 Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** or **`Denied`** — that is your proof the perimeter is enforcing identity, not just present.
 
-> **Note on `Dedicated`:** ARM occasionally drops `logAnalyticsDestinationType` on the first `diagnosticSettings` write. If a query returns nothing and `NSPAccessLogs` doesn't exist, confirm the destination type is `Dedicated` (see step 5).
+> **⚠️ Critical gotcha — do NOT use `allLogs`:** Network Security Perimeter does **not** support the `allLogs` category group. A diagnostic setting created with `categoryGroup: 'allLogs'` is *accepted by ARM without error but collects nothing*, leaving the workspace permanently empty. You must enable each NSP category explicitly (the bicep does this via the `nspLogCategories` array). The two that matter for this demo are `NspPublicInboundResourceRulesAllowed` (the app's managed identity → `Approved`) and `NspPublicInboundResourceRulesDenied` (the laptop token → `Denied`).
+>
+> **Note on `Dedicated`:** `logAnalyticsDestinationType: 'Dedicated'` does **not** persist on NSP diagnostic settings (a fresh GET always reads `null`). This is benign — NSP access logs are resource-specific and land in `NSPAccessLogs` regardless — so the bicep intentionally omits it.
 
 **Step-by-step**
 
@@ -393,17 +395,20 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 2. **Generate ALLOWED traffic** — open the Scenario 2 app (`foundry-demo-nsp-app-<suffix>`) and run a **Chat Test**. The App Service managed identity is permitted by the inbound rule → expect a successful reply. Each call is logged as `Approved`.
 
-3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity):
+3. **Generate DENIED traffic** — from your laptop, call the Foundry data plane with your *user* token (not a managed identity). Use a real chat-completions POST with a current api-version — an older api-version can return a misleading `404` that masks the perimeter denial:
    ```bash
-   ENDPOINT="https://foundry-demo-ai-<suffix>.openai.azure.com"   # your Foundry endpoint
+   ENDPOINT="https://foundry-demo-ai-<suffix>.cognitiveservices.azure.com"   # your Foundry endpoint
    TOKEN=$(az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken -o tsv)
-   curl -s -o /dev/null -w "%{http_code}\n" \
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST \
      -H "Authorization: Bearer $TOKEN" \
-     "$ENDPOINT/openai/models?api-version=2024-10-01"
-   # Expect: 403 (blocked by the perimeter — you are not a managed identity)
+     -H "Content-Type: application/json" \
+     -d '{"messages":[{"role":"user","content":"hi"}],"max_completion_tokens":5}' \
+     "$ENDPOINT/openai/deployments/gpt-5-mini/chat/completions?api-version=2024-12-01-preview"
+   # Expect: 403 — body "Request is rejected by NetworkSecurityPerimeter",
+   #         response header policy-id: ThrowExceptionDueToTrafficDenied
    ```
 
-4. **Wait for ingestion** — allow **~5–10 minutes** for the evaluations to reach the workspace.
+4. **Wait for ingestion** — NSP access logs are **sampled every 30 minutes** and then take **up to ~15 minutes** to propagate, so allow a solid **~30–45 minutes** after generating traffic before expecting rows. An empty result before then is normal, not a failure.
 
 5. **Query the proof** — in the Azure Portal open the workspace → **Logs**, or run it from the CLI:
    ```bash
@@ -428,8 +433,9 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 
 **Caveats for logging**
 
-- **Ingestion latency:** log rows can take 5–10 minutes (occasionally longer) to appear — an empty result immediately after traffic is normal.
-- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you likely have no logged traffic yet (or the destination type isn't `Dedicated`).
+- **Ingestion latency:** NSP access logs are **sampled every 30 minutes**, then take up to ~15 min to propagate — so rows can take **~30–45 minutes** to appear. An empty result immediately after traffic is normal.
+- **`allLogs` collects nothing:** NSP does not support the `allLogs` category group; the diagnostic setting must enable each NSP category explicitly (the bicep does). A workspace that stays *completely* empty (no `NSPAccessLogs` table ever) is the classic symptom of an `allLogs`-based setting.
+- **Table creation:** `NSPAccessLogs` is created on first ingestion; if the table "doesn't exist," you either have no logged traffic yet, are still inside the ~30–45 min window, or the setting was created with `allLogs`.
 - **Workspace placement:** for this demo the workspace lives *outside* the perimeter (simple and fully functional). For production you may add the workspace to the same NSP so the telemetry path is protected too.
 
 ---
