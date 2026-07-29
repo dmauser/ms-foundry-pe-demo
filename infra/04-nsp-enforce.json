@@ -1,0 +1,169 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.42.1.51946",
+      "templateHash": "13775720782717796069"
+    }
+  },
+  "parameters": {
+    "suffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique suffix — must match the Scenario 1 (01-*) deployment"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "centralus",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "allowedSubscriptionResourceId": {
+      "type": "string",
+      "defaultValue": "[subscription().id]",
+      "metadata": {
+        "description": "Subscription id (ARM id format) allowed inbound via managed identity. Defaults to the deployment subscription."
+      }
+    },
+    "logRetentionDays": {
+      "type": "int",
+      "defaultValue": 30,
+      "metadata": {
+        "description": "Retention (days) for the NSP access-log Log Analytics workspace"
+      }
+    }
+  },
+  "variables": {
+    "aiServicesName": "[format('foundry-demo-ai-{0}', parameters('suffix'))]",
+    "nspName": "[format('foundry-demo-nsp-{0}', parameters('suffix'))]",
+    "profileName": "foundry-demo-nsp-profile",
+    "inboundRuleName": "allow-subscription-identities",
+    "associationName": "foundry-assoc",
+    "lawName": "[format('foundry-demo-law-{0}', parameters('suffix'))]",
+    "nspLogCategories": [
+      "NspPublicInboundPerimeterRulesAllowed",
+      "NspPublicInboundPerimeterRulesDenied",
+      "NspPublicOutboundPerimeterRulesAllowed",
+      "NspPublicOutboundPerimeterRulesDenied",
+      "NspIntraPerimeterInboundAllowed",
+      "NspPublicInboundResourceRulesAllowed",
+      "NspPublicInboundResourceRulesDenied",
+      "NspPublicOutboundResourceRulesAllowed",
+      "NspPublicOutboundResourceRulesDenied",
+      "NspPrivateInboundAllowed",
+      "NspCrossPerimeterOutboundAllowed",
+      "NspCrossPerimeterInboundAllowed",
+      "NspOutboundAttempt"
+    ]
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/networkSecurityPerimeters",
+      "apiVersion": "2024-07-01",
+      "name": "[variables('nspName')]",
+      "location": "[parameters('location')]",
+      "properties": {}
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityPerimeters/profiles",
+      "apiVersion": "2024-07-01",
+      "name": "[format('{0}/{1}', variables('nspName'), variables('profileName'))]",
+      "properties": {},
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters', variables('nspName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityPerimeters/profiles/accessRules",
+      "apiVersion": "2024-07-01",
+      "name": "[format('{0}/{1}/{2}', variables('nspName'), variables('profileName'), variables('inboundRuleName'))]",
+      "properties": {
+        "direction": "Inbound",
+        "subscriptions": [
+          {
+            "id": "[parameters('allowedSubscriptionResourceId')]"
+          }
+        ]
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters/profiles', variables('nspName'), variables('profileName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityPerimeters/resourceAssociations",
+      "apiVersion": "2024-07-01",
+      "name": "[format('{0}/{1}', variables('nspName'), variables('associationName'))]",
+      "properties": {
+        "privateLinkResource": {
+          "id": "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]"
+        },
+        "profile": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityPerimeters/profiles', variables('nspName'), variables('profileName'))]"
+        },
+        "accessMode": "Enforced"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters/profiles/accessRules', variables('nspName'), variables('profileName'), variables('inboundRuleName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters', variables('nspName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters/profiles', variables('nspName'), variables('profileName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2023-09-01",
+      "name": "[variables('lawName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": "[parameters('logRetentionDays')]"
+      }
+    },
+    {
+      "type": "Microsoft.Insights/diagnosticSettings",
+      "apiVersion": "2021-05-01-preview",
+      "scope": "[resourceId('Microsoft.Network/networkSecurityPerimeters', variables('nspName'))]",
+      "name": "nsp-access-logs",
+      "properties": {
+        "copy": [
+          {
+            "name": "logs",
+            "count": "[length(variables('nspLogCategories'))]",
+            "input": {
+              "category": "[variables('nspLogCategories')[copyIndex('logs')]]",
+              "enabled": true
+            }
+          }
+        ],
+        "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityPerimeters', variables('nspName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "networkSecurityPerimeterName": {
+      "type": "string",
+      "value": "[variables('nspName')]"
+    },
+    "profileName": {
+      "type": "string",
+      "value": "[variables('profileName')]"
+    },
+    "logAnalyticsWorkspaceName": {
+      "type": "string",
+      "value": "[variables('lawName')]"
+    },
+    "logAnalyticsWorkspaceResourceId": {
+      "type": "string",
+      "value": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('lawName'))]"
+    }
+  }
+}

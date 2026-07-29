@@ -1,0 +1,103 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.42.1.51946",
+      "templateHash": "10353018594890162787"
+    }
+  },
+  "parameters": {
+    "suffix": {
+      "type": "string",
+      "metadata": {
+        "description": "Unique suffix — must match the Scenario 1 (01-*) deployment"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "centralus",
+      "metadata": {
+        "description": "Azure region for all resources"
+      }
+    },
+    "deploymentName": {
+      "type": "string",
+      "defaultValue": "gpt-5-mini",
+      "metadata": {
+        "description": "Deployment name of the model created in Scenario 1 (01-*). Must match."
+      }
+    }
+  },
+  "variables": {
+    "aiServicesName": "[format('foundry-demo-ai-{0}', parameters('suffix'))]",
+    "appServicePlanName": "[format('foundry-demo-plan-{0}', parameters('suffix'))]",
+    "nspWebAppName": "[format('foundry-demo-nsp-app-{0}', parameters('suffix'))]",
+    "cognitiveServicesUserRoleId": "a97b65f3-24c7-4388-baec-2e87135dc908"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2023-12-01",
+      "name": "[variables('nspWebAppName')]",
+      "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('appServicePlanName'))]",
+        "siteConfig": {
+          "linuxFxVersion": "DOTNETCORE|8.0",
+          "appSettings": [
+            {
+              "name": "AzureOpenAI__Endpoint",
+              "value": "[format('https://{0}.cognitiveservices.azure.com/', variables('aiServicesName'))]"
+            },
+            {
+              "name": "AzureOpenAI__DeploymentName",
+              "value": "[parameters('deploymentName')]"
+            },
+            {
+              "name": "AzureOpenAI__UseSystemAssignedIdentity",
+              "value": "true"
+            },
+            {
+              "name": "Demo__Scenario",
+              "value": "NSP"
+            }
+          ]
+        },
+        "httpsOnly": true
+      }
+    },
+    {
+      "type": "Microsoft.Authorization/roleAssignments",
+      "apiVersion": "2022-04-01",
+      "scope": "[resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName'))]",
+      "name": "[guid(resourceId('Microsoft.CognitiveServices/accounts', variables('aiServicesName')), resourceId('Microsoft.Web/sites', variables('nspWebAppName')), variables('cognitiveServicesUserRoleId'))]",
+      "properties": {
+        "principalId": "[reference(resourceId('Microsoft.Web/sites', variables('nspWebAppName')), '2023-12-01', 'full').identity.principalId]",
+        "roleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', variables('cognitiveServicesUserRoleId'))]",
+        "principalType": "ServicePrincipal"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('nspWebAppName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "nspWebAppName": {
+      "type": "string",
+      "value": "[variables('nspWebAppName')]"
+    },
+    "aiServicesEndpoint": {
+      "type": "string",
+      "value": "[format('https://{0}.cognitiveservices.azure.com/', variables('aiServicesName'))]"
+    },
+    "resourceGroupName": {
+      "type": "string",
+      "value": "[resourceGroup().name]"
+    }
+  }
+}
