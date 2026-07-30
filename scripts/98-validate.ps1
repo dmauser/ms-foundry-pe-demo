@@ -136,30 +136,31 @@ function Validate-Scenario2 {
     $nsp = "foundry-demo-nsp-$sfx"
     $law = "foundry-demo-law-$sfx"
 
+    # NSP model: the Foundry endpoint DNS stays PUBLIC by design — access is gated at the
+    # IDENTITY layer by the perimeter, not by the account's own switch. So here
+    # publicNetworkAccess=Enabled is EXPECTED (the opposite of Scenario 1). The real control
+    # is the Enforced NSP association, asserted below.
     $pna = Az cognitiveservices account show -g $rg -n $ai --query properties.publicNetworkAccess -o tsv
-    if ($pna -eq 'Disabled') { Add-Result 'S2' 'Foundry publicNetworkAccess' 'PASS' $pna }
-    elseif ($pna) { Add-Result 'S2' 'Foundry publicNetworkAccess' 'FAIL' "$pna (expected Disabled)" -Critical }
+    if ($pna -eq 'Enabled') { Add-Result 'S2' 'Foundry publicNetworkAccess' 'PASS' 'Enabled (DNS stays public; NSP gates at identity layer)' }
+    elseif ($pna -eq 'Disabled') { Add-Result 'S2' 'Foundry publicNetworkAccess' 'WARN' 'Disabled (NSP scenario normally keeps this Enabled + Enforced perimeter)' }
     else { Add-Result 'S2' 'Foundry publicNetworkAccess' 'SKIP' "account $ai not found — NSP scenario may not be applied" }
 
-    $nspNames = Az network perimeter list -g $rg --query "[].name" -o tsv
-    if ($nspNames -match [regex]::Escape($nsp)) {
+    # Discover the NSP, its association, and its access rules WITHOUT the preview 'nsp' az
+    # extension — using generic 'az resource' + 'az rest' so this works on a stock az install.
+    $nspApi = '2023-08-01-preview'
+    $nspId = Az resource list -g $rg --resource-type 'Microsoft.Network/networkSecurityPerimeters' --query "[?name=='$nsp'].id | [0]" -o tsv
+    if ($nspId) {
         Add-Result 'S2' 'Network Security Perimeter exists' 'PASS' $nsp
 
-        $mode = Az network perimeter association list --perimeter-name $nsp -g $rg --query "[].properties.accessMode" -o tsv
+        $mode = Az rest --method get --url "https://management.azure.com$nspId/resourceAssociations?api-version=$nspApi" --query "value[0].properties.accessMode" -o tsv
         if ($mode -match 'Enforced') { Add-Result 'S2' 'NSP access mode' 'PASS' 'Enforced' }
         elseif ($mode -match 'Learning') { Add-Result 'S2' 'NSP access mode' 'WARN' 'Learning (not yet enforcing)' }
         elseif ($mode) { Add-Result 'S2' 'NSP access mode' 'WARN' $mode }
         else { Add-Result 'S2' 'NSP association' 'FAIL' 'no association found' -Critical }
 
-        $rules = Az network perimeter profile access-rule list --perimeter-name $nsp -g $rg --profile-name 'foundry-demo-nsp-profile' --query "[].name" -o tsv
-        if ($rules) { Add-Result 'S2' 'NSP inbound access rule(s)' 'PASS' (($rules -split '\r?\n').Count.ToString() + ' rule(s)') }
+        $ruleNames = Az rest --method get --url "https://management.azure.com$nspId/profiles/foundry-demo-nsp-profile/accessRules?api-version=$nspApi" --query "value[].name" -o tsv
+        if ($ruleNames) { Add-Result 'S2' 'NSP inbound access rule(s)' 'PASS' (($ruleNames -split '\r?\n' | Where-Object { $_ -ne '' }).Count.ToString() + ' rule(s)') }
         else { Add-Result 'S2' 'NSP inbound access rule(s)' 'WARN' 'no rules returned' }
-    }
-    elseif ($nspNames -eq '' ) {
-        # Could be a missing az extension vs a genuinely-absent NSP.
-        $ext = Az extension show -n nsp --query name -o tsv
-        if (-not $ext) { Add-Result 'S2' 'Network Security Perimeter exists' 'SKIP' "az 'nsp' extension not installed (az extension add -n nsp) or NSP not deployed" }
-        else { Add-Result 'S2' 'Network Security Perimeter exists' 'FAIL' "NSP $nsp not found" -Critical }
     }
     else { Add-Result 'S2' 'Network Security Perimeter exists' 'FAIL' "NSP $nsp not found" -Critical }
 
@@ -174,7 +175,6 @@ function Validate-Scenario2 {
     $lawId = Az monitor log-analytics workspace show -g $rg -n $law --query id -o tsv
     if ($lawId) {
         Add-Result 'S2' 'Log Analytics workspace' 'PASS' $law
-        $nspId = Az network perimeter show -g $rg -n $nsp --query id -o tsv
         if ($nspId) {
             $diag = Az monitor diagnostic-settings list --resource $nspId --query "[?name=='nsp-access-logs'] | length(@)" -o tsv
             if ($diag -eq '1') { Add-Result 'S2' 'Diagnostic setting nsp-access-logs' 'PASS' 'NSPAccessLogs wired' }
