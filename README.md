@@ -561,7 +561,7 @@ The script prints the generated **App URL** and project endpoint. Open the app, 
 The teaching point: the **grounded citation** is the proof the agent read **private** data
 over the VNet — while the same data is unreachable from the public internet.
 
-### Validated end-to-end (DMAUSER-FDPO)
+### Validated end-to-end
 
 > **🔍 Validate & monitor:** run `pwsh scripts/98-validate.ps1 -Scenario 3` (or `bash scripts/98-validate.sh -s 3`) to assert all four resources are `publicNetworkAccess=Disabled`, PEs are Approved, the 6 private DNS zones are VNet-linked, both subnet delegations are correct, and the WebApp is VNet-integrated. See [`docs/network-validation.md`](docs/network-validation.md#scenario-3--private-agent--virtual-network-injection) for the config-assert table, traffic-flow hops, monitoring stack, and troubleshooting — this is the scenario's dedicated field guide.
 

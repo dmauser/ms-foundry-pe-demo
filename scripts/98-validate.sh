@@ -10,7 +10,7 @@
 #   ./scripts/98-validate.sh                 # every deployed scenario
 #   ./scripts/98-validate.sh -s 3            # only Scenario 3
 #   ./scripts/98-validate.sh -s 1 --suffix abcde
-#   ./scripts/98-validate.sh -s 3 -g rg-foundry-agent-kjqta
+#   ./scripts/98-validate.sh -s 3 -g rg-foundry-agent-<suffix>
 #
 # Exit code is non-zero if any CRITICAL check FAILs. A scenario whose suffix
 # file / resource group is absent is reported SKIP (not a failure).
