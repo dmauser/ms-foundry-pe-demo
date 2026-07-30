@@ -47,12 +47,13 @@ Both Scenarios 1 & 2 use **Managed Identity (DefaultAzureCredential)** — no AP
 graph LR
     subgraph PrivatePhase["🔒 PHASE 2: Private Endpoint"]
         direction TB
-        User2["🌐 User/Laptop<br/>❌ BLOCKED"] -.->|✗ cannot reach| AppSvc2["App Service<br/>azurewebsites.net"]
+        User2["🌐 User/Laptop"] -->|✅ HTTPS public<br/>App still reachable| AppSvc2["App Service<br/>azurewebsites.net"]
         AppSvc2 -->|VNet Integration<br/>Private IP 10.0.1.x| VNet["Virtual Network<br/>10.0.0.0/16"]
         VNet -->|Private Route| PrivateEP["🔐 Private Endpoint<br/>10.0.2.x"]
         PrivateEP -->|Managed Link| Foundry2["🔒 Azure AI Foundry<br/>Public Endpoint DISABLED"]
         VNet -->|Private DNS<br/>privatelink.cognitiveservices.azure.com| DNS["Private DNS Zone"]
         DNS -.->|resolves to 10.0.2.x| PrivateEP
+        User2 -.->|❌ direct call blocked<br/>public endpoint disabled| Foundry2
     end
 
     subgraph PublicPhase["🟡 PHASE 1: Public Access"]
