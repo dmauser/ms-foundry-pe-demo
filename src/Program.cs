@@ -333,6 +333,150 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
 
 <!-- Traffic Flow Diagram (Scenario 3 only) -->
 <div class="panel flow" id="flowPanel" style="display:none">
+
+<!-- Scenario 1 — Private Endpoint + VNet Integration -->
+<div id="flowS1" style="display:none">
+  <h2>🗺️ Traffic Flow — Private Endpoint + VNet Integration</h2>
+  <svg viewBox="0 0 900 470" role="img" aria-label="Scenario 1 private-endpoint traffic flow diagram">
+    <defs>
+      <marker id="ok1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#66bb6a"/></marker>
+      <marker id="blue1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4fc3f7"/></marker>
+      <marker id="block1" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#ef5350"/></marker>
+    </defs>
+
+    <!-- VNet boundary -->
+    <rect x="210" y="25" width="505" height="420" rx="12" fill="#0f1f3a" stroke="#7e57c2" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="225" y="47" fill="#b39ddb" font-size="13" font-weight="600">Virtual Network — private · Foundry public access disabled</text>
+
+    <!-- User -->
+    <rect x="25" y="95" width="150" height="80" rx="10" fill="#263238" stroke="#90a4ae" stroke-width="1.5"/>
+    <text x="100" y="130" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🧑 User</text>
+    <text x="100" y="152" fill="#b0bec5" font-size="12" text-anchor="middle">Browser</text>
+
+    <!-- Laptop (direct-to-Foundry blocked) -->
+    <rect x="25" y="330" width="150" height="80" rx="10" fill="#3a1414" stroke="#ef5350" stroke-width="1.5"/>
+    <text x="100" y="365" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">💻 Laptop</text>
+    <text x="100" y="387" fill="#ef9a9a" font-size="12" text-anchor="middle">direct → Foundry</text>
+
+    <!-- App Service (public front door stays reachable) -->
+    <rect x="245" y="95" width="190" height="90" rx="10" fill="#0d2a4a" stroke="#4fc3f7" stroke-width="1.5"/>
+    <text x="340" y="128" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🌐 App Service</text>
+    <text x="340" y="150" fill="#90caf9" font-size="11.5" text-anchor="middle">VNet-integrated · app-subnet</text>
+
+    <!-- Private DNS zone -->
+    <rect x="485" y="100" width="205" height="85" rx="10" fill="#1a2740" stroke="#90a4ae" stroke-width="1.5"/>
+    <text x="587" y="126" fill="#e0e0e0" font-size="13.5" font-weight="600" text-anchor="middle">🧭 Private DNS zone</text>
+    <text x="587" y="147" fill="#b0bec5" font-size="11" text-anchor="middle">privatelink.*.azure.com</text>
+    <text x="587" y="165" fill="#a5d6a7" font-size="11" text-anchor="middle">→ private-endpoint IP</text>
+
+    <!-- Private Endpoint -->
+    <rect x="245" y="310" width="190" height="90" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="340" y="343" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🔌 Private Endpoint</text>
+    <text x="340" y="365" fill="#a5d6a7" font-size="11.5" text-anchor="middle">pe-subnet · private IP</text>
+
+    <!-- Azure OpenAI / Foundry (PaaS behind the PE) -->
+    <rect x="735" y="310" width="150" height="90" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="810" y="338" fill="#e0e0e0" font-size="13.5" font-weight="600" text-anchor="middle">🧠 Azure OpenAI</text>
+    <text x="810" y="358" fill="#a5d6a7" font-size="11" text-anchor="middle">Foundry · public</text>
+    <text x="810" y="375" fill="#ef9a9a" font-size="11" text-anchor="middle">access disabled</text>
+
+    <!-- User -> App Service (public HTTPS, allowed) -->
+    <line x1="175" y1="135" x2="241" y2="135" stroke="#4fc3f7" stroke-width="2" marker-end="url(#blue1)"/>
+    <rect x="176" y="112" width="62" height="16" rx="4" fill="#16213e"/>
+    <text x="207" y="124" fill="#90caf9" font-size="10" text-anchor="middle">HTTPS ▶</text>
+
+    <!-- App Service -> Private DNS (resolve) -->
+    <line x1="435" y1="140" x2="483" y2="140" stroke="#66bb6a" stroke-width="2" marker-end="url(#ok1)"/>
+    <rect x="415" y="80" width="108" height="16" rx="4" fill="#16213e"/>
+    <text x="469" y="92" fill="#a5d6a7" font-size="11" text-anchor="middle">① resolve FQDN</text>
+
+    <!-- App Service -> Private Endpoint (private route) -->
+    <line x1="340" y1="185" x2="340" y2="306" stroke="#66bb6a" stroke-width="2" marker-end="url(#ok1)"/>
+    <rect x="345" y="235" width="104" height="16" rx="4" fill="#16213e"/>
+    <text x="397" y="247" fill="#a5d6a7" font-size="11" text-anchor="middle">② private route</text>
+
+    <!-- Private Endpoint -> Foundry (crosses VNet boundary) -->
+    <line x1="435" y1="355" x2="733" y2="355" stroke="#66bb6a" stroke-width="2" marker-end="url(#ok1)"/>
+    <rect x="505" y="333" width="150" height="16" rx="4" fill="#16213e"/>
+    <text x="580" y="345" fill="#a5d6a7" font-size="11" text-anchor="middle">③ Azure OpenAI call</text>
+
+    <!-- Laptop -> Foundry (direct, blocked) -->
+    <line x1="175" y1="370" x2="205" y2="370" stroke="#ef5350" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#block1)"/>
+    <text x="216" y="376" fill="#ef5350" font-size="18" font-weight="700" text-anchor="middle">✕</text>
+    <text x="100" y="405" fill="#ef9a9a" font-size="10" text-anchor="middle">direct → Foundry blocked</text>
+  </svg>
+  <p class="chat-meta">The browser reaches the VNet-integrated App Service over <strong>public HTTPS</strong> — the app's front door stays public. The App Service resolves the Foundry FQDN through the <strong>private DNS zone</strong> to the private-endpoint IP, connects over the VNet to the <strong>Private Endpoint</strong>, which forwards to <strong>Azure OpenAI</strong> (public access disabled). A laptop calling Foundry <em>directly</em> is blocked — the public endpoint is off and the name resolves to an unreachable private IP. <span style="color:#90caf9">Blue = public HTTPS (allowed)</span>; <span style="color:#a5d6a7">green = private path (allowed)</span>; <span style="color:#ef9a9a">red dashed = blocked</span>.</p>
+</div>
+
+<!-- Scenario 2 — Network Security Perimeter + Managed Identity -->
+<div id="flowS2" style="display:none">
+  <h2>🗺️ Traffic Flow — Network Security Perimeter (Identity Boundary)</h2>
+  <svg viewBox="0 0 900 430" role="img" aria-label="Scenario 2 network security perimeter traffic flow diagram">
+    <defs>
+      <marker id="ok2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#66bb6a"/></marker>
+      <marker id="blue2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4fc3f7"/></marker>
+      <marker id="block2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#ef5350"/></marker>
+    </defs>
+
+    <!-- NSP perimeter boundary -->
+    <rect x="545" y="35" width="335" height="350" rx="12" fill="#0f2a28" stroke="#4db6ac" stroke-width="2" stroke-dasharray="8 6"/>
+    <text x="560" y="57" fill="#80cbc4" font-size="13" font-weight="600">🛡️ Network Security Perimeter — identity boundary</text>
+
+    <!-- User -->
+    <rect x="25" y="80" width="150" height="80" rx="10" fill="#263238" stroke="#90a4ae" stroke-width="1.5"/>
+    <text x="100" y="115" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🧑 User</text>
+    <text x="100" y="137" fill="#b0bec5" font-size="12" text-anchor="middle">Browser</text>
+
+    <!-- Laptop (user token, blocked by NSP) -->
+    <rect x="25" y="285" width="150" height="80" rx="10" fill="#3a1414" stroke="#ef5350" stroke-width="1.5"/>
+    <text x="100" y="320" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">💻 Laptop</text>
+    <text x="100" y="342" fill="#ef9a9a" font-size="12" text-anchor="middle">user token</text>
+
+    <!-- App Service (no VNet integration) -->
+    <rect x="250" y="80" width="210" height="95" rx="10" fill="#0d2a4a" stroke="#4fc3f7" stroke-width="1.5"/>
+    <text x="355" y="112" fill="#e0e0e0" font-size="14" font-weight="600" text-anchor="middle">🌐 App Service</text>
+    <text x="355" y="133" fill="#90caf9" font-size="11.5" text-anchor="middle">Managed Identity</text>
+    <text x="355" y="152" fill="#b0bec5" font-size="11" text-anchor="middle">(no VNet integration)</text>
+
+    <!-- NSP inbound access rule -->
+    <rect x="580" y="90" width="270" height="75" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="715" y="116" fill="#e0e0e0" font-size="13.5" font-weight="600" text-anchor="middle">✅ Inbound access rule</text>
+    <text x="715" y="137" fill="#a5d6a7" font-size="11" text-anchor="middle">subscription managed identities</text>
+    <text x="715" y="155" fill="#a5d6a7" font-size="11" text-anchor="middle">accessMode: Enforced</text>
+
+    <!-- Foundry (public DNS, NSP-enforced) -->
+    <rect x="580" y="240" width="270" height="95" rx="10" fill="#12351f" stroke="#66bb6a" stroke-width="1.5"/>
+    <text x="715" y="272" fill="#e0e0e0" font-size="13.5" font-weight="600" text-anchor="middle">🧠 Azure OpenAI / Foundry</text>
+    <text x="715" y="293" fill="#b0bec5" font-size="11" text-anchor="middle">public DNS · NSP-enforced</text>
+    <text x="715" y="312" fill="#a5d6a7" font-size="11" text-anchor="middle">public access: Restricted</text>
+
+    <!-- User -> App Service (public HTTPS, allowed) -->
+    <line x1="175" y1="120" x2="246" y2="120" stroke="#4fc3f7" stroke-width="2" marker-end="url(#blue2)"/>
+    <rect x="176" y="97" width="62" height="16" rx="4" fill="#16213e"/>
+    <text x="207" y="109" fill="#90caf9" font-size="10" text-anchor="middle">HTTPS ▶</text>
+
+    <!-- App Service -> Access rule (managed identity, allowed) -->
+    <line x1="460" y1="122" x2="578" y2="125" stroke="#66bb6a" stroke-width="2" marker-end="url(#ok2)"/>
+    <rect x="478" y="100" width="82" height="16" rx="4" fill="#16213e"/>
+    <text x="519" y="112" fill="#a5d6a7" font-size="11" text-anchor="middle">① MI token</text>
+
+    <!-- Access rule -> Foundry -->
+    <line x1="715" y1="165" x2="715" y2="238" stroke="#66bb6a" stroke-width="2" marker-end="url(#ok2)"/>
+    <rect x="720" y="192" width="74" height="16" rx="4" fill="#16213e"/>
+    <text x="757" y="204" fill="#a5d6a7" font-size="11" text-anchor="middle">✓ allowed</text>
+
+    <!-- Laptop -> Foundry (user token, blocked at perimeter) -->
+    <line x1="175" y1="325" x2="543" y2="300" stroke="#ef5350" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#block2)"/>
+    <text x="553" y="305" fill="#ef5350" font-size="18" font-weight="700" text-anchor="middle">✕</text>
+    <rect x="300" y="299" width="150" height="16" rx="4" fill="#16213e"/>
+    <text x="375" y="311" fill="#ef9a9a" font-size="11" text-anchor="middle">✕ blocked by NSP</text>
+    <text x="375" y="331" fill="#ef9a9a" font-size="10" text-anchor="middle">user identity not in perimeter</text>
+  </svg>
+  <p class="chat-meta">The App Service is <strong>not</strong> VNet-integrated. It calls Azure OpenAI over the <strong>public</strong> endpoint, but the <strong>Network Security Perimeter</strong> only admits callers whose <strong>managed identity</strong> matches the subscription inbound rule (<code>accessMode: Enforced</code>) — so the App Service (①) is allowed. A laptop using a <strong>user token</strong> is blocked at the perimeter even though the DNS name is public. The boundary is the <strong>identity layer</strong>, not the network. <span style="color:#90caf9">Blue = public HTTPS</span>; <span style="color:#a5d6a7">green = allowed (identity in perimeter)</span>; <span style="color:#ef9a9a">red dashed = blocked by NSP</span>.</p>
+</div>
+
+<!-- Scenario 3 — Private Data Path -->
+<div id="flowS3" style="display:none">
   <h2>🗺️ Traffic Flow — Private Data Path</h2>
   <svg viewBox="0 0 900 560" role="img" aria-label="Scenario 3 private traffic flow diagram">
     <defs>
@@ -423,6 +567,7 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   </svg>
   <p class="chat-meta">The browser reaches only the VNet-integrated WebApp over public HTTPS. The WebApp ① retrieves the best-matching manual from private AI Search (BM25) and ② reads manuals from private Blob Storage, then ③ runs the network-injected Foundry Agent — which persists <em>threads</em> to private Cosmos DB and calls the private <em>gpt-5-mini</em> model. Every backend has public access disabled. <span style="color:#ef9a9a">Green = private (allowed); red dashed = direct public access, blocked.</span></p>
 </div>
+</div>
 
 <!-- Chat Test Panel -->
 <div class="panel">
@@ -452,9 +597,14 @@ const SCENARIO="__SCENARIO__";
 const IS_NSP=SCENARIO==="NSP";
 const IS_AGENT=SCENARIO==="Agent";
 
+function showFlow(id){
+  document.getElementById('flowPanel').style.display='block';
+  ['flowS1','flowS2','flowS3'].forEach(function(f){document.getElementById(f).style.display=(f===id)?'block':'none';});
+}
+
 function applyScenario(){
   if(IS_AGENT){applyAgent();return;}
-  if(!IS_NSP)return;
+  if(!IS_NSP){showFlow('flowS1');return;}
   document.title="Scenario 2 — Azure OpenAI Network Security Perimeter Demo";
   document.getElementById('pageTitle').textContent='🛡️ Scenario 2 — Azure OpenAI Network Security Perimeter Demo';
   document.getElementById('pageSubtitle').textContent='Protecting Azure OpenAI with a Network Security Perimeter + Managed Identity — no VNet Integration required';
@@ -462,6 +612,7 @@ function applyScenario(){
   document.getElementById('lblVnetIP').textContent='Access control:';
   document.getElementById('lblVnet').textContent='VNet Integrated:';
   document.getElementById('scenarioNote').innerHTML='Endpoint stays public in DNS by design — the boundary is at the <strong>identity layer</strong>. Use the Chat Test below as the allow/deny proof: from the App Service (managed identity) it succeeds; from a laptop (user token) it is blocked by the perimeter.';
+  showFlow('flowS2');
 }
 
 function applyAgent(){
@@ -470,7 +621,7 @@ function applyAgent(){
   document.getElementById('pageSubtitle').textContent='A Foundry Agent injected into a VNet, grounding answers on private appliance manuals in Storage + AI Search — everything private, public access disabled';
   document.getElementById('scenarioNote').innerHTML='This WebApp is VNet-integrated on <code>app-subnet</code> — the only client that can reach the private agent. Seed the manuals, then ask <em>“why is my washer showing error E4?”</em> for a grounded answer with a citation to the private manual.';
   document.getElementById('agentPanel').style.display='block';
-  document.getElementById('flowPanel').style.display='block';
+  showFlow('flowS3');
   document.getElementById('examples').style.display='flex';
   document.getElementById('promptInput').placeholder='e.g. Why is my washer showing error E4?';
   loadAgentInfo();
