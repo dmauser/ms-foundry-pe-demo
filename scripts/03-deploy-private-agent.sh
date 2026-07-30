@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 ###############################################################################
-# Scenario 3 — Deploy the Private Foundry Agent (Standard Agent Setup + VNet
+# Scenario 2 — Deploy the Private Foundry Agent (Standard Agent Setup + VNet
 # injection) with its VNet-integrated test WebApp.
 #
 # Self-contained: own resource group, own suffix, region westus3 (Standard Agent
-# Setup + gpt-5-mini supported). Does NOT touch Scenario 1/2 infra.
+# Setup + gpt-5-mini supported). Does NOT touch Scenario 1/3 infra.
 #
 # Flow: register RPs -> create RG -> deploy Bicep (VNet + Storage/Cosmos/Search
 # private + Foundry account/project network-injected + capability host + WebApp)
@@ -28,8 +28,8 @@ echo "Using deployment suffix: $SUFFIX"
 
 LOCATION="westus3"
 RESOURCE_GROUP="rg-foundry-agent-$SUFFIX"
-BICEP_FILE="$REPO_ROOT/infra/05-private-agent/main.bicep"
-DEPLOYMENT_NAME="scenario3-agent-$SUFFIX"
+BICEP_FILE="$REPO_ROOT/infra/03-private-agent/main.bicep"
+DEPLOYMENT_NAME="scenario2-agent-$SUFFIX"
 
 # --- Step 1: Register resource providers (idempotent) ---
 echo -e "\n▶ Registering resource providers..."
@@ -104,7 +104,7 @@ fi
 # --- Done ---
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "✓ Scenario 3 complete! Private Foundry Agent + VNet injection deployed."
+echo "✓ Scenario 2 complete! Private Foundry Agent + VNet injection deployed."
 echo "  App URL:          $WEB_APP_URL"
 echo "  Project endpoint: $PROJECT_ENDPOINT"
 echo "  Suffix:           $SUFFIX"

@@ -1,4 +1,4 @@
-// Scenario 3 sample data — fictional appliance product manuals.
+// Scenario 2 sample data — fictional appliance product manuals.
 //
 // These are uploaded (from inside the VNet, by /api/seed) to the PRIVATE blob
 // storage / File Search vector store and become the agent's grounding corpus.

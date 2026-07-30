@@ -9,7 +9,7 @@
 #   pwsh scripts/98-validate.ps1                  # every deployed scenario
 #   pwsh scripts/98-validate.ps1 -Scenario 3      # only Scenario 3
 #   pwsh scripts/98-validate.ps1 -Scenario 1 -Suffix abcde
-#   pwsh scripts/98-validate.ps1 -Scenario 3 -ResourceGroup rg-foundry-agent-<suffix>
+#   pwsh scripts/98-validate.ps1 -Scenario 2 -ResourceGroup rg-foundry-agent-<suffix>
 #
 # Exit code is non-zero if any CRITICAL check FAILs. A scenario whose suffix
 # file / resource group is absent is reported SKIP (not a failure).
@@ -121,14 +121,14 @@ function Validate-Scenario1 {
 }
 
 # ---------------------------------------------------------------------------
-# Scenario 2 — Network Security Perimeter + Managed Identity
+# Scenario 3 — Network Security Perimeter + Managed Identity
 # ---------------------------------------------------------------------------
-function Validate-Scenario2 {
+function Validate-Scenario3 {
     $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix' }
     $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-demo-$sfx" } else { '' }
 
     if (-not $rg -or -not (Test-Rg $rg)) {
-        Add-Result 'S2' 'Deployment present' 'SKIP' 'no .deploy-suffix / resource group — not deployed'
+        Add-Result 'S3' 'Deployment present' 'SKIP' 'no .deploy-suffix / resource group — not deployed'
         return
     }
     $ai = "foundry-demo-ai-$sfx"
@@ -141,89 +141,89 @@ function Validate-Scenario2 {
     # publicNetworkAccess=Enabled is EXPECTED (the opposite of Scenario 1). The real control
     # is the Enforced NSP association, asserted below.
     $pna = Az cognitiveservices account show -g $rg -n $ai --query properties.publicNetworkAccess -o tsv
-    if ($pna -eq 'Enabled') { Add-Result 'S2' 'Foundry publicNetworkAccess' 'PASS' 'Enabled (DNS stays public; NSP gates at identity layer)' }
-    elseif ($pna -eq 'Disabled') { Add-Result 'S2' 'Foundry publicNetworkAccess' 'WARN' 'Disabled (NSP scenario normally keeps this Enabled + Enforced perimeter)' }
-    else { Add-Result 'S2' 'Foundry publicNetworkAccess' 'SKIP' "account $ai not found — NSP scenario may not be applied" }
+    if ($pna -eq 'Enabled') { Add-Result 'S3' 'Foundry publicNetworkAccess' 'PASS' 'Enabled (DNS stays public; NSP gates at identity layer)' }
+    elseif ($pna -eq 'Disabled') { Add-Result 'S3' 'Foundry publicNetworkAccess' 'WARN' 'Disabled (NSP scenario normally keeps this Enabled + Enforced perimeter)' }
+    else { Add-Result 'S3' 'Foundry publicNetworkAccess' 'SKIP' "account $ai not found — NSP scenario may not be applied" }
 
     # Discover the NSP, its association, and its access rules WITHOUT the preview 'nsp' az
     # extension — using generic 'az resource' + 'az rest' so this works on a stock az install.
     $nspApi = '2023-08-01-preview'
     $nspId = Az resource list -g $rg --resource-type 'Microsoft.Network/networkSecurityPerimeters' --query "[?name=='$nsp'].id | [0]" -o tsv
     if ($nspId) {
-        Add-Result 'S2' 'Network Security Perimeter exists' 'PASS' $nsp
+        Add-Result 'S3' 'Network Security Perimeter exists' 'PASS' $nsp
 
         $mode = Az rest --method get --url "https://management.azure.com$nspId/resourceAssociations?api-version=$nspApi" --query "value[0].properties.accessMode" -o tsv
-        if ($mode -match 'Enforced') { Add-Result 'S2' 'NSP access mode' 'PASS' 'Enforced' }
-        elseif ($mode -match 'Learning') { Add-Result 'S2' 'NSP access mode' 'WARN' 'Learning (not yet enforcing)' }
-        elseif ($mode) { Add-Result 'S2' 'NSP access mode' 'WARN' $mode }
-        else { Add-Result 'S2' 'NSP association' 'FAIL' 'no association found' -Critical }
+        if ($mode -match 'Enforced') { Add-Result 'S3' 'NSP access mode' 'PASS' 'Enforced' }
+        elseif ($mode -match 'Learning') { Add-Result 'S3' 'NSP access mode' 'WARN' 'Learning (not yet enforcing)' }
+        elseif ($mode) { Add-Result 'S3' 'NSP access mode' 'WARN' $mode }
+        else { Add-Result 'S3' 'NSP association' 'FAIL' 'no association found' -Critical }
 
         $ruleNames = Az rest --method get --url "https://management.azure.com$nspId/profiles/foundry-demo-nsp-profile/accessRules?api-version=$nspApi" --query "value[].name" -o tsv
-        if ($ruleNames) { Add-Result 'S2' 'NSP inbound access rule(s)' 'PASS' (($ruleNames -split '\r?\n' | Where-Object { $_ -ne '' }).Count.ToString() + ' rule(s)') }
-        else { Add-Result 'S2' 'NSP inbound access rule(s)' 'WARN' 'no rules returned' }
+        if ($ruleNames) { Add-Result 'S3' 'NSP inbound access rule(s)' 'PASS' (($ruleNames -split '\r?\n' | Where-Object { $_ -ne '' }).Count.ToString() + ' rule(s)') }
+        else { Add-Result 'S3' 'NSP inbound access rule(s)' 'WARN' 'no rules returned' }
     }
-    else { Add-Result 'S2' 'Network Security Perimeter exists' 'FAIL' "NSP $nsp not found" -Critical }
+    else { Add-Result 'S3' 'Network Security Perimeter exists' 'FAIL' "NSP $nsp not found" -Critical }
 
     $subnetId = Az webapp show -g $rg -n $nspApp --query virtualNetworkSubnetId -o tsv
     if (-not $subnetId) {
         $exists = Az webapp show -g $rg -n $nspApp --query name -o tsv
-        if ($exists) { Add-Result 'S2' 'NSP app has NO VNet integration' 'PASS' 'identity-only path (correct)' }
-        else { Add-Result 'S2' 'NSP app has NO VNet integration' 'SKIP' "$nspApp not found" }
+        if ($exists) { Add-Result 'S3' 'NSP app has NO VNet integration' 'PASS' 'identity-only path (correct)' }
+        else { Add-Result 'S3' 'NSP app has NO VNet integration' 'SKIP' "$nspApp not found" }
     }
-    else { Add-Result 'S2' 'NSP app has NO VNet integration' 'FAIL' "unexpectedly integrated: $subnetId" }
+    else { Add-Result 'S3' 'NSP app has NO VNet integration' 'FAIL' "unexpectedly integrated: $subnetId" }
 
     $lawId = Az monitor log-analytics workspace show -g $rg -n $law --query id -o tsv
     if ($lawId) {
-        Add-Result 'S2' 'Log Analytics workspace' 'PASS' $law
+        Add-Result 'S3' 'Log Analytics workspace' 'PASS' $law
         if ($nspId) {
             $diag = Az monitor diagnostic-settings list --resource $nspId --query "[?name=='nsp-access-logs'] | length(@)" -o tsv
-            if ($diag -eq '1') { Add-Result 'S2' 'Diagnostic setting nsp-access-logs' 'PASS' 'NSPAccessLogs wired' }
-            else { Add-Result 'S2' 'Diagnostic setting nsp-access-logs' 'WARN' 'not found on NSP' }
+            if ($diag -eq '1') { Add-Result 'S3' 'Diagnostic setting nsp-access-logs' 'PASS' 'NSPAccessLogs wired' }
+            else { Add-Result 'S3' 'Diagnostic setting nsp-access-logs' 'WARN' 'not found on NSP' }
         }
     }
-    else { Add-Result 'S2' 'Log Analytics workspace' 'SKIP' "$law not found" }
+    else { Add-Result 'S3' 'Log Analytics workspace' 'SKIP' "$law not found" }
 }
 
 # ---------------------------------------------------------------------------
-# Scenario 3 — Private Agent + VNet Injection (discover resources by listing)
+# Scenario 2 — Private Agent + VNet Injection (discover resources by listing)
 # ---------------------------------------------------------------------------
-function Validate-Scenario3 {
+function Validate-Scenario2 {
     $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix-agent' }
     $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-agent-$sfx" } else { '' }
 
     if (-not $rg -or -not (Test-Rg $rg)) {
-        Add-Result 'S3' 'Deployment present' 'SKIP' 'no .deploy-suffix-agent / resource group — not deployed'
+        Add-Result 'S2' 'Deployment present' 'SKIP' 'no .deploy-suffix-agent / resource group — not deployed'
         return
     }
 
     $stgPna = Az storage account list -g $rg --query "[].publicNetworkAccess" -o tsv
-    if ($stgPna -and ($stgPna -notmatch 'Enabled')) { Add-Result 'S3' 'Storage publicNetworkAccess' 'PASS' 'Disabled' }
-    elseif ($stgPna) { Add-Result 'S3' 'Storage publicNetworkAccess' 'FAIL' $stgPna -Critical }
-    else { Add-Result 'S3' 'Storage publicNetworkAccess' 'SKIP' 'no storage account found' }
+    if ($stgPna -and ($stgPna -notmatch 'Enabled')) { Add-Result 'S2' 'Storage publicNetworkAccess' 'PASS' 'Disabled' }
+    elseif ($stgPna) { Add-Result 'S2' 'Storage publicNetworkAccess' 'FAIL' $stgPna -Critical }
+    else { Add-Result 'S2' 'Storage publicNetworkAccess' 'SKIP' 'no storage account found' }
 
     $cosPna = Az cosmosdb list -g $rg --query "[].publicNetworkAccess" -o tsv
-    if ($cosPna -and ($cosPna -notmatch 'Enabled')) { Add-Result 'S3' 'Cosmos DB publicNetworkAccess' 'PASS' 'Disabled' }
-    elseif ($cosPna) { Add-Result 'S3' 'Cosmos DB publicNetworkAccess' 'FAIL' $cosPna -Critical }
-    else { Add-Result 'S3' 'Cosmos DB publicNetworkAccess' 'SKIP' 'no Cosmos account found' }
+    if ($cosPna -and ($cosPna -notmatch 'Enabled')) { Add-Result 'S2' 'Cosmos DB publicNetworkAccess' 'PASS' 'Disabled' }
+    elseif ($cosPna) { Add-Result 'S2' 'Cosmos DB publicNetworkAccess' 'FAIL' $cosPna -Critical }
+    else { Add-Result 'S2' 'Cosmos DB publicNetworkAccess' 'SKIP' 'no Cosmos account found' }
 
     $srchPna = Az search service list -g $rg --query "[].publicNetworkAccess" -o tsv
-    if ($srchPna -and ($srchPna -match 'disabled')) { Add-Result 'S3' 'AI Search publicNetworkAccess' 'PASS' 'disabled' }
-    elseif ($srchPna) { Add-Result 'S3' 'AI Search publicNetworkAccess' 'FAIL' $srchPna -Critical }
-    else { Add-Result 'S3' 'AI Search publicNetworkAccess' 'SKIP' 'no Search service found' }
+    if ($srchPna -and ($srchPna -match 'disabled')) { Add-Result 'S2' 'AI Search publicNetworkAccess' 'PASS' 'disabled' }
+    elseif ($srchPna) { Add-Result 'S2' 'AI Search publicNetworkAccess' 'FAIL' $srchPna -Critical }
+    else { Add-Result 'S2' 'AI Search publicNetworkAccess' 'SKIP' 'no Search service found' }
 
     $aiPna = Az cognitiveservices account list -g $rg --query "[].properties.publicNetworkAccess" -o tsv
-    if ($aiPna -and ($aiPna -notmatch 'Enabled')) { Add-Result 'S3' 'Foundry publicNetworkAccess' 'PASS' 'Disabled' }
-    elseif ($aiPna) { Add-Result 'S3' 'Foundry publicNetworkAccess' 'FAIL' $aiPna -Critical }
-    else { Add-Result 'S3' 'Foundry publicNetworkAccess' 'SKIP' 'no Foundry account found' }
+    if ($aiPna -and ($aiPna -notmatch 'Enabled')) { Add-Result 'S2' 'Foundry publicNetworkAccess' 'PASS' 'Disabled' }
+    elseif ($aiPna) { Add-Result 'S2' 'Foundry publicNetworkAccess' 'FAIL' $aiPna -Critical }
+    else { Add-Result 'S2' 'Foundry publicNetworkAccess' 'SKIP' 'no Foundry account found' }
 
     $peStates = Az network private-endpoint list -g $rg --query "[].privateLinkServiceConnections[].privateLinkServiceConnectionState.status" -o tsv
     if ($peStates) {
         $states = $peStates -split '\r?\n'
         $bad = $states | Where-Object { $_ -notmatch 'Approved' }
-        if (-not $bad) { Add-Result 'S3' 'Private endpoints approved' 'PASS' "$($states.Count) endpoint(s) Approved" }
-        else { Add-Result 'S3' 'Private endpoints approved' 'FAIL' ($bad -join ', ') -Critical }
+        if (-not $bad) { Add-Result 'S2' 'Private endpoints approved' 'PASS' "$($states.Count) endpoint(s) Approved" }
+        else { Add-Result 'S2' 'Private endpoints approved' 'FAIL' ($bad -join ', ') -Critical }
     }
-    else { Add-Result 'S3' 'Private endpoints approved' 'FAIL' 'no private endpoints found' -Critical }
+    else { Add-Result 'S2' 'Private endpoints approved' 'FAIL' 'no private endpoints found' -Critical }
 
     $expectedZones = @(
         'privatelink.services.ai.azure.com', 'privatelink.openai.azure.com',
@@ -232,9 +232,9 @@ function Validate-Scenario3 {
     )
     $zones = (Az network private-dns zone list -g $rg --query "[].name" -o tsv) -split '\r?\n'
     $missing = $expectedZones | Where-Object { $zones -notcontains $_ }
-    if (-not $missing) { Add-Result 'S3' 'Six private DNS zones present' 'PASS' '6/6 core zones' }
-    elseif ($zones -and $zones[0]) { Add-Result 'S3' 'Six private DNS zones present' 'FAIL' "missing: $($missing -join ', ')" -Critical }
-    else { Add-Result 'S3' 'Six private DNS zones present' 'SKIP' 'no private DNS zones found' }
+    if (-not $missing) { Add-Result 'S2' 'Six private DNS zones present' 'PASS' '6/6 core zones' }
+    elseif ($zones -and $zones[0]) { Add-Result 'S2' 'Six private DNS zones present' 'FAIL' "missing: $($missing -join ', ')" -Critical }
+    else { Add-Result 'S2' 'Six private DNS zones present' 'SKIP' 'no private DNS zones found' }
 
     $vnetName = Az network vnet list -g $rg --query "[0].name" -o tsv
     if ($vnetName) {
@@ -246,29 +246,29 @@ function Validate-Scenario3 {
                 if ($l -notmatch [regex]::Escape($vnetName)) { $linkedAll = $false }
             }
         }
-        if ($linkedAll) { Add-Result 'S3' 'DNS zones VNet-linked' 'PASS' "linked to $vnetName" }
-        else { Add-Result 'S3' 'DNS zones VNet-linked' 'FAIL' 'one or more zones not linked to the agent VNet' -Critical }
+        if ($linkedAll) { Add-Result 'S2' 'DNS zones VNet-linked' 'PASS' "linked to $vnetName" }
+        else { Add-Result 'S2' 'DNS zones VNet-linked' 'FAIL' 'one or more zones not linked to the agent VNet' -Critical }
 
         $agentDeleg = Az network vnet subnet show -g $rg --vnet-name $vnetName -n agent-subnet --query "delegations[].serviceName" -o tsv
-        if ($agentDeleg -match 'Microsoft.App/environments') { Add-Result 'S3' 'agent-subnet delegation' 'PASS' 'Microsoft.App/environments' }
-        elseif ($agentDeleg) { Add-Result 'S3' 'agent-subnet delegation' 'WARN' $agentDeleg }
-        else { Add-Result 'S3' 'agent-subnet delegation' 'SKIP' 'agent-subnet not found' }
+        if ($agentDeleg -match 'Microsoft.App/environments') { Add-Result 'S2' 'agent-subnet delegation' 'PASS' 'Microsoft.App/environments' }
+        elseif ($agentDeleg) { Add-Result 'S2' 'agent-subnet delegation' 'WARN' $agentDeleg }
+        else { Add-Result 'S2' 'agent-subnet delegation' 'SKIP' 'agent-subnet not found' }
 
         $appDeleg = Az network vnet subnet show -g $rg --vnet-name $vnetName -n app-subnet --query "delegations[].serviceName" -o tsv
-        if ($appDeleg -match 'Microsoft.Web/serverFarms') { Add-Result 'S3' 'app-subnet delegation' 'PASS' 'Microsoft.Web/serverFarms' }
-        elseif ($appDeleg) { Add-Result 'S3' 'app-subnet delegation' 'WARN' $appDeleg }
-        else { Add-Result 'S3' 'app-subnet delegation' 'SKIP' 'app-subnet not found' }
+        if ($appDeleg -match 'Microsoft.Web/serverFarms') { Add-Result 'S2' 'app-subnet delegation' 'PASS' 'Microsoft.Web/serverFarms' }
+        elseif ($appDeleg) { Add-Result 'S2' 'app-subnet delegation' 'WARN' $appDeleg }
+        else { Add-Result 'S2' 'app-subnet delegation' 'SKIP' 'app-subnet not found' }
     }
-    else { Add-Result 'S3' 'VNet present' 'FAIL' 'no VNet found in RG' -Critical }
+    else { Add-Result 'S2' 'VNet present' 'FAIL' 'no VNet found in RG' -Critical }
 
     $webApp = Az webapp list -g $rg --query "[0].name" -o tsv
     if ($webApp) {
         $subnetId = Az webapp show -g $rg -n $webApp --query virtualNetworkSubnetId -o tsv
-        if ($subnetId -match '/subnets/app-subnet') { Add-Result 'S3' 'Test WebApp VNet-integrated' 'PASS' 'app-subnet' }
-        elseif ($subnetId) { Add-Result 'S3' 'Test WebApp VNet-integrated' 'WARN' (($subnetId -split '/')[-1]) }
-        else { Add-Result 'S3' 'Test WebApp VNet-integrated' 'FAIL' 'not integrated' -Critical }
+        if ($subnetId -match '/subnets/app-subnet') { Add-Result 'S2' 'Test WebApp VNet-integrated' 'PASS' 'app-subnet' }
+        elseif ($subnetId) { Add-Result 'S2' 'Test WebApp VNet-integrated' 'WARN' (($subnetId -split '/')[-1]) }
+        else { Add-Result 'S2' 'Test WebApp VNet-integrated' 'FAIL' 'not integrated' -Critical }
     }
-    else { Add-Result 'S3' 'Test WebApp VNet-integrated' 'SKIP' 'no WebApp found' }
+    else { Add-Result 'S2' 'Test WebApp VNet-integrated' 'SKIP' 'no WebApp found' }
 }
 
 # ---------------------------------------------------------------------------

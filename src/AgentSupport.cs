@@ -1,4 +1,4 @@
-// Scenario 3 — Private Foundry Agent (Standard Agent Setup + VNet injection).
+// Scenario 2 — Private Foundry Agent (Standard Agent Setup + VNet injection).
 //
 // All of this runs INSIDE the VNet (executed by the VNet-integrated WebApp), because the
 // Foundry project's public network access is Disabled. Grounding uses an app-side

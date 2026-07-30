@@ -1,5 +1,5 @@
 ###############################################################################
-# Scenario 2 — Step A: Deploy the second (NSP) App Service.
+# Scenario 3 — Step A: Deploy the second (NSP) App Service.
 # Reuses the Scenario 1 Foundry + App Service Plan (same suffix). Deploys a new
 # App Service WITHOUT VNet integration, then builds & zip-deploys the app.
 # The Foundry stays public here, so both laptop and app can call it.
@@ -44,7 +44,7 @@ if ([string]::IsNullOrWhiteSpace($DeployerObjectId)) {
 
 # --- Deploy Bicep (second App Service + RBAC) ---
 Write-Host "`n▶ Deploying NSP App Service via Bicep..."
-$BicepFile = Join-Path $RepoRoot "infra\03-nsp-app-service.bicep"
+$BicepFile = Join-Path $RepoRoot "infra\04-nsp-app-service.bicep"
 az deployment group create `
     --resource-group $ResourceGroup `
     --template-file $BicepFile `
@@ -75,7 +75,7 @@ Remove-Item $ZipFile -Force -ErrorAction SilentlyContinue
 
 # --- Done ---
 Write-Host "`n════════════════════════════════════════════════════════════════"
-Write-Host "✓ Scenario 2 Step A complete! NSP App Service deployed (public Foundry)."
+Write-Host "✓ Scenario 3 Step A complete! NSP App Service deployed (public Foundry)."
 Write-Host "  App URL: https://$NspWebAppName.azurewebsites.net"
-Write-Host "  Next:    scripts/04-enforce-nsp.ps1  (lock Foundry behind the perimeter)"
+Write-Host "  Next:    scripts/05-enforce-nsp.ps1  (lock Foundry behind the perimeter)"
 Write-Host "════════════════════════════════════════════════════════════════"

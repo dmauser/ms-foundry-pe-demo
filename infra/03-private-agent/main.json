@@ -179,7 +179,7 @@
       "type": "bool",
       "defaultValue": true,
       "metadata": {
-        "description": "Deploy the VNet-integrated test WebApp front end (Scenario 3 proof surface)."
+        "description": "Deploy the VNet-integrated test WebApp front end (Scenario 2 proof surface)."
       }
     },
     "appServiceSku": {

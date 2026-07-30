@@ -96,7 +96,7 @@ resource aiSearch 'Microsoft.Search/searchServices@2024-06-01-preview' = if(!aiS
     }
   }
   sku: {
-    // Scenario 3 (ms-foundry-pe-demo) cost optimization: the upstream sample uses
+    // Scenario 2 (ms-foundry-pe-demo) cost optimization: the upstream sample uses
     // 'standard' (~$250/mo). 'basic' supports private endpoints + AAD auth and is
     // the cheapest SKU that satisfies the private-networking requirement (~$75/mo).
     name: 'basic'

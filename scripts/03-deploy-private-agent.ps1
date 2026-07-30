@@ -1,9 +1,9 @@
 ###############################################################################
-# Scenario 3 — Deploy the Private Foundry Agent (Standard Agent Setup + VNet
+# Scenario 2 — Deploy the Private Foundry Agent (Standard Agent Setup + VNet
 # injection) with its VNet-integrated test WebApp.
 #
 # Self-contained: own resource group, own suffix, region westus3 (Standard Agent
-# Setup + gpt-5-mini supported). Does NOT touch Scenario 1/2 infra.
+# Setup + gpt-5-mini supported). Does NOT touch Scenario 1/3 infra.
 #
 # Flow: register RPs -> create RG -> deploy Bicep (VNet + Storage/Cosmos/Search
 # private + Foundry account/project network-injected + capability host + WebApp)
@@ -27,7 +27,7 @@ Write-Host "Using deployment suffix: $Suffix"
 
 $Location = "westus3"
 $ResourceGroup = "rg-foundry-agent-$Suffix"
-$BicepFile = Join-Path $RepoRoot "infra\05-private-agent\main.bicep"
+$BicepFile = Join-Path $RepoRoot "infra\03-private-agent\main.bicep"
 
 # --- Step 1: Register resource providers (idempotent) ---
 Write-Host "`n▶ Registering resource providers..."
@@ -46,7 +46,7 @@ if ($LASTEXITCODE -ne 0) { throw "Failed to create resource group" }
 
 # --- Step 3: Deploy Bicep (all infra) ---
 Write-Host "`n▶ Deploying infrastructure via Bicep (this takes ~10-15 min)..."
-$DeploymentName = "scenario3-agent-$Suffix"
+$DeploymentName = "scenario2-agent-$Suffix"
 az deployment group create `
     --resource-group $ResourceGroup `
     --name $DeploymentName `
@@ -103,7 +103,7 @@ if (-not $Seeded) { Write-Host "  ⚠ Auto-seed did not complete — open the ap
 
 # --- Done ---
 Write-Host "`n════════════════════════════════════════════════════════════════"
-Write-Host "✓ Scenario 3 complete! Private Foundry Agent + VNet injection deployed."
+Write-Host "✓ Scenario 2 complete! Private Foundry Agent + VNet injection deployed."
 Write-Host "  App URL:          $WebAppUrl"
 Write-Host "  Project endpoint: $ProjectEndpoint"
 Write-Host "  Suffix:           $Suffix"
