@@ -15,7 +15,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 # --- Suffix (RG name only; all Azure resource names derive from the RG id) ---
-$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-agent"
+$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s2"
 if (Test-Path $SuffixFile) {
     $Suffix = (Get-Content $SuffixFile -Raw).Trim()
 } else {
@@ -26,7 +26,7 @@ if (Test-Path $SuffixFile) {
 Write-Host "Using deployment suffix: $Suffix"
 
 $Location = "westus3"
-$ResourceGroup = "rg-foundry-agent-$Suffix"
+$ResourceGroup = "rg-foundry-s2-agent-$Suffix"
 $BicepFile = Join-Path $RepoRoot "infra\03-private-agent\main.bicep"
 
 # --- Step 1: Register resource providers (idempotent) ---

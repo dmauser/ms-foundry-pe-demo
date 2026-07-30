@@ -11,15 +11,15 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 # --- Load suffix ---
-$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
+$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s3"
 if (-not (Test-Path $SuffixFile)) {
-    Write-Host "❌ No .deploy-suffix file found. Run Scenario 1 (01) and Scenario 3 Step A (04) first." -ForegroundColor Red
+    Write-Host "❌ No .deploy-suffix-s3 file found. Run the Scenario 3 baseline (01 -Scenario s3) and Step A (04) first." -ForegroundColor Red
     exit 1
 }
 $Suffix = (Get-Content $SuffixFile -Raw).Trim()
 Write-Host "Using deployment suffix: $Suffix"
 
-$ResourceGroup = "rg-foundry-demo-$Suffix"
+$ResourceGroup = "rg-foundry-s3-nsp-$Suffix"
 $Location = "centralus"
 
 # --- Prerequisite: register NSP preview feature flags -------------------------

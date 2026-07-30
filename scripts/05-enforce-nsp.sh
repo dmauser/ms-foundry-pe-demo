@@ -13,15 +13,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- Load suffix ---
-SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix"
+SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s3"
 if [[ ! -f "$SUFFIX_FILE" ]]; then
-    echo "❌ No .deploy-suffix file found. Run Scenario 1 (01) and Scenario 3 Step A (04) first."
+    echo "❌ No .deploy-suffix-s3 file found. Run the Scenario 3 baseline (01 --scenario s3) and Step A (04) first."
     exit 1
 fi
 SUFFIX=$(cat "$SUFFIX_FILE")
 echo "Using deployment suffix: $SUFFIX"
 
-RESOURCE_GROUP="rg-foundry-demo-$SUFFIX"
+RESOURCE_GROUP="rg-foundry-s3-nsp-$SUFFIX"
 LOCATION="centralus"
 
 # --- Prerequisite: register NSP preview feature flags -------------------------

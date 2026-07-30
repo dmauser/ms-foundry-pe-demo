@@ -5,21 +5,22 @@
 # linger (soft-deleted accounts still count against quota and block same-name
 # redeploys).
 #
-# Scenarios:
-#   nsp    -> rg-foundry-demo-<suffix>   (Scenarios 1 & 3, suffix file .deploy-suffix)
-#   agent  -> rg-foundry-agent-<suffix>  (Scenario 2,      suffix file .deploy-suffix-agent)
+# Scenarios (with legacy aliases accepted):
+#   s1  (alias pe)     -> rg-foundry-s1-pe-<suffix>     (Scenario 1, suffix file .deploy-suffix-s1)
+#   s2  (alias agent)  -> rg-foundry-s2-agent-<suffix>  (Scenario 2, suffix file .deploy-suffix-s2)
+#   s3  (alias nsp)    -> rg-foundry-s3-nsp-<suffix>    (Scenario 3, suffix file .deploy-suffix-s3)
 #
 # Usage:
-#   ./99-teardown.ps1                        # nsp lab, saved suffix, prompt to confirm
-#   ./99-teardown.ps1 -Scenario agent        # Scenario 2 lab
+#   ./99-teardown.ps1                        # Scenario 1 lab, saved suffix, prompt to confirm
+#   ./99-teardown.ps1 -Scenario s2           # Scenario 2 lab
 #   ./99-teardown.ps1 -Suffix abc12          # override the suffix
 #   ./99-teardown.ps1 -Subscription <id>     # target a specific subscription
 #   ./99-teardown.ps1 -Yes                   # skip the confirmation prompt
 #   ./99-teardown.ps1 -NoWait                # return immediately (async delete)
 ###############################################################################
 param(
-    [ValidateSet("nsp", "agent")]
-    [string]$Scenario = "nsp",
+    [ValidateSet("s1", "s2", "s3", "pe", "agent", "nsp")]
+    [string]$Scenario = "s1",
     [string]$Suffix,
     [string]$Subscription,
     [switch]$Yes,
@@ -28,13 +29,27 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# --- Normalize legacy aliases (pe->s1, agent->s2, nsp->s3) ---
+switch ($Scenario) {
+    "pe"    { $Scenario = "s1" }
+    "agent" { $Scenario = "s2" }
+    "nsp"   { $Scenario = "s3" }
+}
+
 # --- Scenario -> RG prefix + suffix file ---
-if ($Scenario -eq "agent") {
-    $RgPrefix = "rg-foundry-agent-"
-    $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-agent"
-} else {
-    $RgPrefix = "rg-foundry-demo-"
-    $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
+switch ($Scenario) {
+    "s2" {
+        $RgPrefix = "rg-foundry-s2-agent-"
+        $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s2"
+    }
+    "s3" {
+        $RgPrefix = "rg-foundry-s3-nsp-"
+        $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s3"
+    }
+    default {
+        $RgPrefix = "rg-foundry-s1-pe-"
+        $SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s1"
+    }
 }
 
 # --- Resolve suffix ---

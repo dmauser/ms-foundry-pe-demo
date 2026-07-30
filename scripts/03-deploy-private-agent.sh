@@ -17,7 +17,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # --- Suffix (RG name only; all Azure resource names derive from the RG id) ---
-SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-agent"
+SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s2"
 if [[ -f "$SUFFIX_FILE" ]]; then
     SUFFIX=$(cat "$SUFFIX_FILE")
 else
@@ -27,7 +27,7 @@ fi
 echo "Using deployment suffix: $SUFFIX"
 
 LOCATION="westus3"
-RESOURCE_GROUP="rg-foundry-agent-$SUFFIX"
+RESOURCE_GROUP="rg-foundry-s2-agent-$SUFFIX"
 BICEP_FILE="$REPO_ROOT/infra/03-private-agent/main.bicep"
 DEPLOYMENT_NAME="scenario2-agent-$SUFFIX"
 

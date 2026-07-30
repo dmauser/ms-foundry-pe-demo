@@ -9,7 +9,7 @@
 #   pwsh scripts/98-validate.ps1                  # every deployed scenario
 #   pwsh scripts/98-validate.ps1 -Scenario 3      # only Scenario 3
 #   pwsh scripts/98-validate.ps1 -Scenario 1 -Suffix abcde
-#   pwsh scripts/98-validate.ps1 -Scenario 2 -ResourceGroup rg-foundry-agent-<suffix>
+#   pwsh scripts/98-validate.ps1 -Scenario 2 -ResourceGroup rg-foundry-s2-agent-<suffix>
 #
 # Exit code is non-zero if any CRITICAL check FAILs. A scenario whose suffix
 # file / resource group is absent is reported SKIP (not a failure).
@@ -78,11 +78,11 @@ function Read-Suffix {
 # Scenario 1 — Private Endpoint + VNet Integration
 # ---------------------------------------------------------------------------
 function Validate-Scenario1 {
-    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix' }
-    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-demo-$sfx" } else { '' }
+    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix-s1' }
+    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-s1-pe-$sfx" } else { '' }
 
     if (-not $rg -or -not (Test-Rg $rg)) {
-        Add-Result 'S1' 'Deployment present' 'SKIP' 'no .deploy-suffix / resource group — not deployed'
+        Add-Result 'S1' 'Deployment present' 'SKIP' 'no .deploy-suffix-s1 / resource group — not deployed'
         return
     }
     $ai = "foundry-demo-ai-$sfx"
@@ -124,11 +124,11 @@ function Validate-Scenario1 {
 # Scenario 3 — Network Security Perimeter + Managed Identity
 # ---------------------------------------------------------------------------
 function Validate-Scenario3 {
-    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix' }
-    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-demo-$sfx" } else { '' }
+    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix-s3' }
+    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-s3-nsp-$sfx" } else { '' }
 
     if (-not $rg -or -not (Test-Rg $rg)) {
-        Add-Result 'S3' 'Deployment present' 'SKIP' 'no .deploy-suffix / resource group — not deployed'
+        Add-Result 'S3' 'Deployment present' 'SKIP' 'no .deploy-suffix-s3 / resource group — not deployed'
         return
     }
     $ai = "foundry-demo-ai-$sfx"
@@ -188,11 +188,11 @@ function Validate-Scenario3 {
 # Scenario 2 — Private Agent + VNet Injection (discover resources by listing)
 # ---------------------------------------------------------------------------
 function Validate-Scenario2 {
-    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix-agent' }
-    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-agent-$sfx" } else { '' }
+    $sfx = if ($Suffix) { $Suffix } else { Read-Suffix '.deploy-suffix-s2' }
+    $rg = if ($ResourceGroup) { $ResourceGroup } elseif ($sfx) { "rg-foundry-s2-agent-$sfx" } else { '' }
 
     if (-not $rg -or -not (Test-Rg $rg)) {
-        Add-Result 'S2' 'Deployment present' 'SKIP' 'no .deploy-suffix-agent / resource group — not deployed'
+        Add-Result 'S2' 'Deployment present' 'SKIP' 'no .deploy-suffix-s2 / resource group — not deployed'
         return
     }
 

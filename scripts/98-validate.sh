@@ -10,7 +10,7 @@
 #   ./scripts/98-validate.sh                 # every deployed scenario
 #   ./scripts/98-validate.sh -s 3            # only Scenario 3
 #   ./scripts/98-validate.sh -s 1 --suffix abcde
-#   ./scripts/98-validate.sh -s 2 -g rg-foundry-agent-<suffix>
+#   ./scripts/98-validate.sh -s 2 -g rg-foundry-s2-agent-<suffix>
 #
 # Exit code is non-zero if any CRITICAL check FAILs. A scenario whose suffix
 # file / resource group is absent is reported SKIP (not a failure).
@@ -72,11 +72,11 @@ read_suffix() {  # filename
 # ---------------------------------------------------------------------------
 validate_s1() {
     local sfx rg
-    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix)}"
-    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-demo-$sfx"
+    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix-s1)}"
+    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-s1-pe-$sfx"
 
     if [[ -z "$rg" ]] || ! rg_exists "$rg"; then
-        add_result S1 "Deployment present" SKIP "no .deploy-suffix / resource group — not deployed"
+        add_result S1 "Deployment present" SKIP "no .deploy-suffix-s1 / resource group — not deployed"
         return
     fi
     local ai="foundry-demo-ai-$sfx" app="foundry-demo-app-$sfx" vnet="foundry-demo-vnet-$sfx"
@@ -118,11 +118,11 @@ validate_s1() {
 # ---------------------------------------------------------------------------
 validate_s3() {
     local sfx rg
-    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix)}"
-    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-demo-$sfx"
+    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix-s3)}"
+    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-s3-nsp-$sfx"
 
     if [[ -z "$rg" ]] || ! rg_exists "$rg"; then
-        add_result S3 "Deployment present" SKIP "no .deploy-suffix / resource group — not deployed"
+        add_result S3 "Deployment present" SKIP "no .deploy-suffix-s3 / resource group — not deployed"
         return
     fi
     local ai="foundry-demo-ai-$sfx" nspApp="foundry-demo-nsp-app-$sfx"
@@ -179,11 +179,11 @@ validate_s3() {
 # ---------------------------------------------------------------------------
 validate_s2() {
     local sfx rg
-    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix-agent)}"
-    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-agent-$sfx"
+    sfx="${OVERRIDE_SUFFIX:-$(read_suffix .deploy-suffix-s2)}"
+    rg="${OVERRIDE_RG:-}"; [[ -z "$rg" && -n "$sfx" ]] && rg="rg-foundry-s2-agent-$sfx"
 
     if [[ -z "$rg" ]] || ! rg_exists "$rg"; then
-        add_result S2 "Deployment present" SKIP "no .deploy-suffix-agent / resource group — not deployed"
+        add_result S2 "Deployment present" SKIP "no .deploy-suffix-s2 / resource group — not deployed"
         return
     fi
 
