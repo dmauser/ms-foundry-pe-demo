@@ -9,7 +9,7 @@
 #   pwsh scripts/98-validate.ps1                  # every deployed scenario
 #   pwsh scripts/98-validate.ps1 -Scenario 3      # only Scenario 3
 #   pwsh scripts/98-validate.ps1 -Scenario 1 -Suffix abcde
-#   pwsh scripts/98-validate.ps1 -Scenario 3 -ResourceGroup rg-foundry-agent-kjqta
+#   pwsh scripts/98-validate.ps1 -Scenario 3 -ResourceGroup rg-foundry-agent-<suffix>
 #
 # Exit code is non-zero if any CRITICAL check FAILs. A scenario whose suffix
 # file / resource group is absent is reported SKIP (not a failure).
