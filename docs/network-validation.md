@@ -12,7 +12,7 @@ scenario:
 
 > This guide **cross-links** — it does not duplicate — the existing deep-dives:
 > - **[network-evidence.md](network-evidence.md)** — public-vs-private evidence tables (Scenario 1).
-> - **README → "Validate NSP enforcement with diagnostic logs (Scenario 2)"** — the full
+> - **README → "Validate NSP enforcement with diagnostic logs (Scenario 3)"** — the full
 >   `NSPAccessLogs` KQL walkthrough.
 
 ---
@@ -25,16 +25,16 @@ SKIP** table. They make **no changes** — safe to run against a live lab.
 ```bash
 # Bash
 ./scripts/98-validate.sh            # validates every scenario that is deployed
-./scripts/98-validate.sh -s 3       # only Scenario 3
+./scripts/98-validate.sh -s 2       # only Scenario 2
 ```
 ```powershell
 # PowerShell
 pwsh scripts/98-validate.ps1                 # all deployed scenarios
-pwsh scripts/98-validate.ps1 -Scenario 3     # only Scenario 3
+pwsh scripts/98-validate.ps1 -Scenario 2     # only Scenario 2
 ```
 
-- **Scenario 1 & 2** are discovered from `scripts/.deploy-suffix` → RG `rg-foundry-demo-<suffix>`.
-- **Scenario 3** is discovered from `scripts/.deploy-suffix-agent` → RG `rg-foundry-agent-<suffix>`.
+- **Scenario 1 & 3** are discovered from `scripts/.deploy-suffix` → RG `rg-foundry-demo-<suffix>`.
+- **Scenario 2** is discovered from `scripts/.deploy-suffix-agent` → RG `rg-foundry-agent-<suffix>`.
 - A scenario whose suffix file / resource group is missing is reported **SKIP**, not FAIL.
 - Override discovery with `-Suffix <s>` / `-ResourceGroup <rg>` (`-suffix` / `-g` in Bash).
 - Exit code is **non-zero** if any *critical* check fails (handy in CI / pre-demo gates).
@@ -97,75 +97,7 @@ Resource names (suffix from `scripts/.deploy-suffix`, RG `rg-foundry-demo-<suffi
 
 ---
 
-## Scenario 2 — Network Security Perimeter + Managed Identity
-
-**Isolation layer:** identity. The Foundry endpoint has **public access disabled** but is
-wrapped in a **Network Security Perimeter (NSP)**. Access is allowed by an **inbound rule
-keyed on the App Service's managed identity** — no VNet, no private endpoint. A laptop bearing
-a user token is **denied by the perimeter** even with the right RBAC role.
-
-Resource names (same suffix / RG / region as Scenario 1):
-
-| Resource | Name |
-|----------|------|
-| App Service (no VNet) | `foundry-demo-nsp-app-<suffix>` |
-| Network Security Perimeter | `foundry-demo-nsp-<suffix>` |
-| Log Analytics workspace | `foundry-demo-law-<suffix>` |
-| NSP diagnostic setting | `nsp-access-logs` → table `NSPAccessLogs` |
-
-### Config to assert
-
-| Check | Command | Expected |
-|-------|---------|----------|
-| Public access disabled | `az cognitiveservices account show -g rg-foundry-demo-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
-| NSP exists | `az network perimeter list -g rg-foundry-demo-<suffix> --query "[].name" -o tsv` | `foundry-demo-nsp-<suffix>` |
-| Foundry associated to NSP | `az network perimeter association list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --query "[].properties.accessMode" -o tsv` | `Enforced` (or `Learning` while tuning) |
-| Inbound access rule present | `az network perimeter profile access-rule list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --profile-name <profile> --query "[].name" -o tsv` | at least one rule |
-| NSP app has **no** VNet integration | `az webapp show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-app-<suffix> --query virtualNetworkSubnetId -o tsv` | empty / `None` |
-| Diagnostic logs wired | `az monitor diagnostic-settings list --resource <nsp-id> --query "[?name=='nsp-access-logs'] | length(@)"` | `1` |
-
-> `<profile>` is the NSP's default profile (list with `az network perimeter profile list`).
-> The NSP resource id for the diagnostic-settings check comes from
-> `az network perimeter show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-<suffix> --query id -o tsv`.
-
-### Traffic flow
-
-1. Browser → **`foundry-demo-nsp-app-<suffix>.azurewebsites.net`**.
-2. App acquires a token for **its own system-assigned managed identity** (no keys).
-3. Call goes to the Foundry **public FQDN** (no PE) but hits the **NSP** first.
-4. NSP evaluates the inbound rule → the app's MI **principal is allowed** → request proceeds.
-5. A **laptop** with a user token + `Cognitive Services OpenAI User` RBAC still gets
-   **denied by the perimeter** (identity not in the allow rule). Each evaluation is logged.
-
-### Monitoring — the perimeter is only trustworthy if you can *see* it
-
-- **`NSPAccessLogs`** in `foundry-demo-law-<suffix>` records every evaluation with
-  `ResultAction` = **`Approved`** / **`Denied`**. Full KQL walkthrough (allowed-vs-denied,
-  ingestion latency ~30–45 min, the `allLogs`-collects-nothing gotcha, the 13 explicit
-  categories) is in the **README → "Validate NSP enforcement with diagnostic logs (Scenario 2)"**.
-- Quick query:
-
-  ```kusto
-  NSPAccessLogs
-  | where ServiceFqdn has "foundry-demo-ai"
-  | project TimeGenerated, ResultAction, Profile, MatchedRule, SourceIpAddress
-  | order by TimeGenerated desc
-  ```
-
-- **Learning vs Enforced:** run in **Learning** mode first to observe would-be denials
-  without blocking, then flip to **Enforced**. The association's `accessMode` tells you which.
-
-### Troubleshooting
-
-| Symptom | Likely cause | Fix |
-|---------|--------------|-----|
-| Laptop gets `401 "…lacks the required data action…"` | RBAC rejected *before* the perimeter | Grant the tester `Cognitive Services OpenAI User`; wait a few min; retry (now you'll see the NSP *Denied*) |
-| `NSPAccessLogs` table never appears | diag setting used `allLogs` (unsupported) or no traffic yet | Ensure the 13 categories are explicit (the bicep does this); generate traffic; wait ~30–45 min |
-| App call denied too | app MI not in an inbound allow rule | Add/verify the inbound rule keyed on the app's managed identity |
-
----
-
-## Scenario 3 — Private Agent + Virtual Network Injection
+## Scenario 2 — Private Agent + Virtual Network Injection
 
 **Isolation layer:** the whole agent platform. The Foundry **agent runtime is injected** into a
 delegated subnet and talks to BYO **Storage + Cosmos DB + AI Search** exclusively over
@@ -234,32 +166,100 @@ validator resolves them by listing the RG.
 
 ---
 
+## Scenario 3 — Network Security Perimeter + Managed Identity
+
+**Isolation layer:** identity. The Foundry endpoint has **public access disabled** but is
+wrapped in a **Network Security Perimeter (NSP)**. Access is allowed by an **inbound rule
+keyed on the App Service's managed identity** — no VNet, no private endpoint. A laptop bearing
+a user token is **denied by the perimeter** even with the right RBAC role.
+
+Resource names (same suffix / RG / region as Scenario 1):
+
+| Resource | Name |
+|----------|------|
+| App Service (no VNet) | `foundry-demo-nsp-app-<suffix>` |
+| Network Security Perimeter | `foundry-demo-nsp-<suffix>` |
+| Log Analytics workspace | `foundry-demo-law-<suffix>` |
+| NSP diagnostic setting | `nsp-access-logs` → table `NSPAccessLogs` |
+
+### Config to assert
+
+| Check | Command | Expected |
+|-------|---------|----------|
+| Public access disabled | `az cognitiveservices account show -g rg-foundry-demo-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
+| NSP exists | `az network perimeter list -g rg-foundry-demo-<suffix> --query "[].name" -o tsv` | `foundry-demo-nsp-<suffix>` |
+| Foundry associated to NSP | `az network perimeter association list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --query "[].properties.accessMode" -o tsv` | `Enforced` (or `Learning` while tuning) |
+| Inbound access rule present | `az network perimeter profile access-rule list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --profile-name <profile> --query "[].name" -o tsv` | at least one rule |
+| NSP app has **no** VNet integration | `az webapp show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-app-<suffix> --query virtualNetworkSubnetId -o tsv` | empty / `None` |
+| Diagnostic logs wired | `az monitor diagnostic-settings list --resource <nsp-id> --query "[?name=='nsp-access-logs'] | length(@)"` | `1` |
+
+> `<profile>` is the NSP's default profile (list with `az network perimeter profile list`).
+> The NSP resource id for the diagnostic-settings check comes from
+> `az network perimeter show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-<suffix> --query id -o tsv`.
+
+### Traffic flow
+
+1. Browser → **`foundry-demo-nsp-app-<suffix>.azurewebsites.net`**.
+2. App acquires a token for **its own system-assigned managed identity** (no keys).
+3. Call goes to the Foundry **public FQDN** (no PE) but hits the **NSP** first.
+4. NSP evaluates the inbound rule → the app's MI **principal is allowed** → request proceeds.
+5. A **laptop** with a user token + `Cognitive Services OpenAI User` RBAC still gets
+   **denied by the perimeter** (identity not in the allow rule). Each evaluation is logged.
+
+### Monitoring — the perimeter is only trustworthy if you can *see* it
+
+- **`NSPAccessLogs`** in `foundry-demo-law-<suffix>` records every evaluation with
+  `ResultAction` = **`Approved`** / **`Denied`**. Full KQL walkthrough (allowed-vs-denied,
+  ingestion latency ~30–45 min, the `allLogs`-collects-nothing gotcha, the 13 explicit
+  categories) is in the **README → "Validate NSP enforcement with diagnostic logs (Scenario 3)"**.
+- Quick query:
+
+  ```kusto
+  NSPAccessLogs
+  | where ServiceFqdn has "foundry-demo-ai"
+  | project TimeGenerated, ResultAction, Profile, MatchedRule, SourceIpAddress
+  | order by TimeGenerated desc
+  ```
+
+- **Learning vs Enforced:** run in **Learning** mode first to observe would-be denials
+  without blocking, then flip to **Enforced**. The association's `accessMode` tells you which.
+
+### Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| Laptop gets `401 "…lacks the required data action…"` | RBAC rejected *before* the perimeter | Grant the tester `Cognitive Services OpenAI User`; wait a few min; retry (now you'll see the NSP *Denied*) |
+| `NSPAccessLogs` table never appears | diag setting used `allLogs` (unsupported) or no traffic yet | Ensure the 13 categories are explicit (the bicep does this); generate traffic; wait ~30–45 min |
+| App call denied too | app MI not in an inbound allow rule | Add/verify the inbound rule keyed on the app's managed identity |
+
+---
+
 ## Cross-scenario verification matrix
 
-| What a network engineer checks | Scenario 1 (PE + VNet) | Scenario 2 (NSP + MI) | Scenario 3 (Injected agent) |
-|--------------------------------|------------------------|------------------------|------------------------------|
-| **Isolation layer** | Network (private endpoint) | Identity (managed identity) | Network — whole agent platform |
+| What a network engineer checks | Scenario 1 (PE + VNet) | Scenario 2 (Injected agent) | Scenario 3 (NSP + MI) |
+|--------------------------------|------------------------|------------------------------|------------------------|
+| **Isolation layer** | Network (private endpoint) | Network — whole agent platform | Identity (managed identity) |
 | **Foundry `publicNetworkAccess`** | `Disabled` | `Disabled` | `Disabled` |
-| **Private endpoint(s)** | 1 (Foundry) `Approved` | none (by design) | Storage + Cosmos + Search + Foundry, all `Approved` |
-| **Private DNS zones** | 1–2 (`cognitiveservices`/`openai`) | none | 6 (ai/openai/cognitive/search/blob/cosmos) |
-| **App VNet integration** | Yes (`foundry-demo-app`) | **No** (identity-only) | Yes (test WebApp in `app-subnet`) |
-| **Subnet delegations** | integration subnet | none | `agent-subnet`→App, `app-subnet`→Web |
-| **What blocks a laptop** | Public access off + private DNS | NSP identity rule | Public access off + private DNS |
-| **Primary telemetry** | `/api/diagnostics`, PE state, flow logs | **`NSPAccessLogs`** (Approved/Denied) | App Insights + PE state + grounded citation |
-| **Functional proof** | `isPrivate:true`, `10.x` | app allowed / laptop denied in logs | grounded answer w/ private-manual citation |
+| **Private endpoint(s)** | 1 (Foundry) `Approved` | Storage + Cosmos + Search + Foundry, all `Approved` | none (by design) |
+| **Private DNS zones** | 1–2 (`cognitiveservices`/`openai`) | 6 (ai/openai/cognitive/search/blob/cosmos) | none |
+| **App VNet integration** | Yes (`foundry-demo-app`) | Yes (test WebApp in `app-subnet`) | **No** (identity-only) |
+| **Subnet delegations** | integration subnet | `agent-subnet`→App, `app-subnet`→Web | none |
+| **What blocks a laptop** | Public access off + private DNS | Public access off + private DNS | NSP identity rule |
+| **Primary telemetry** | `/api/diagnostics`, PE state, flow logs | App Insights + PE state + grounded citation | **`NSPAccessLogs`** (Approved/Denied) |
+| **Functional proof** | `isPrivate:true`, `10.x` | grounded answer w/ private-manual citation | app allowed / laptop denied in logs |
 | **One-command check** | `98-validate -s 1` | `98-validate -s 2` | `98-validate -s 3` |
 
 ## Monitoring stack per scenario
 
 | Telemetry source | Scenario 1 | Scenario 2 | Scenario 3 |
 |------------------|:---------:|:---------:|:---------:|
-| App `/api/diagnostics` (isPrivate/resolvedIp) | ✅ | – (identity path) | ✅ (`/api/agent-info`) |
-| Log Analytics **`NSPAccessLogs`** | – | ✅ (`foundry-demo-law-<suffix>`) | – |
-| Application Insights (agent traces) | – | – | ✅ (AMPLS private) |
-| Private-endpoint connection state / metrics | ✅ | – | ✅ (per store) |
-| Private-DNS resolution from Kudu (`nslookup`) | ✅ | – | ✅ |
-| NSG / VNet flow logs (+ Traffic Analytics) | optional | – | optional (`pe`/`app` subnets) |
-| Connection Monitor (synthetic 443 to PE) | optional | – | optional |
+| App `/api/diagnostics` (isPrivate/resolvedIp) | ✅ | ✅ (`/api/agent-info`) | – (identity path) |
+| Log Analytics **`NSPAccessLogs`** | – | – | ✅ (`foundry-demo-law-<suffix>`) |
+| Application Insights (agent traces) | – | ✅ (AMPLS private) | – |
+| Private-endpoint connection state / metrics | ✅ | ✅ (per store) | – |
+| Private-DNS resolution from Kudu (`nslookup`) | ✅ | ✅ | – |
+| NSG / VNet flow logs (+ Traffic Analytics) | optional | optional (`pe`/`app` subnets) | – |
+| Connection Monitor (synthetic 443 to PE) | optional | optional | – |
 
 ---
 

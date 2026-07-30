@@ -131,7 +131,7 @@ app.MapGet("/api/ask", async (string? prompt) =>
     if (string.IsNullOrWhiteSpace(prompt))
         return Results.BadRequest(new { error = "prompt query parameter is required" });
 
-    // Scenario 3 — route to the private Foundry Agent (File Search grounded).
+    // Scenario 2 — route to the private Foundry Agent (File Search grounded).
     if (string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
     {
         try { return Results.Json(await AgentSupport.AskAsync(app.Configuration, prompt)); }
@@ -172,7 +172,7 @@ app.MapGet("/api/ask", async (string? prompt) =>
     }
 });
 
-// --- Agent seed API (Scenario 3): upload manuals -> vector store -> create agent ---
+// --- Agent seed API (Scenario 2): upload manuals -> vector store -> create agent ---
 app.MapPost("/api/seed", async (HttpRequest req) =>
 {
     if (!string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
@@ -183,7 +183,7 @@ app.MapPost("/api/seed", async (HttpRequest req) =>
     catch (Exception ex) { return Results.Json(new { error = ex.Message }, statusCode: 502); }
 });
 
-// --- Agent info API (Scenario 3): current agent / vector store / manuals ---
+// --- Agent info API (Scenario 2): current agent / vector store / manuals ---
 app.MapGet("/api/diag-notool", async () =>
 {
     if (!string.Equals(Scenario(app.Configuration), "Agent", StringComparison.OrdinalIgnoreCase))
@@ -314,7 +314,7 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <button class="btn" id="btnFoundry" onclick="runFoundryStatus()">🔄 Check Foundry</button>
 </div>
 
-<!-- Agent / Private Data Panel (Scenario 3 only) -->
+<!-- Agent / Private Data Panel (Scenario 2 only) -->
 <div class="panel" id="agentPanel" style="display:none">
   <h2>🤖 Private Agent &amp; Data Stores <span id="agentBadge" class="badge badge-unknown">⏳ CHECKING</span></h2>
   <div class="info-grid">
@@ -331,7 +331,7 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <button class="btn" id="btnAgentInfo" onclick="loadAgentInfo()">🔄 Refresh</button>
 </div>
 
-<!-- Traffic Flow Diagram (Scenario 3 only) -->
+<!-- Traffic Flow Diagram (all scenarios) -->
 <div class="panel flow" id="flowPanel" style="display:none">
 
 <!-- Scenario 1 — Private Endpoint + VNet Integration -->
@@ -408,10 +408,10 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <p class="chat-meta">The browser reaches the VNet-integrated App Service over <strong>public HTTPS</strong> — the app's front door stays public. The App Service resolves the Foundry FQDN through the <strong>private DNS zone</strong> to the private-endpoint IP, connects over the VNet to the <strong>Private Endpoint</strong>, which forwards to <strong>Azure OpenAI</strong> (public access disabled). A laptop calling Foundry <em>directly</em> is blocked — the public endpoint is off and the name resolves to an unreachable private IP. <span style="color:#90caf9">Blue = public HTTPS (allowed)</span>; <span style="color:#a5d6a7">green = private path (allowed)</span>; <span style="color:#ef9a9a">red dashed = blocked</span>.</p>
 </div>
 
-<!-- Scenario 2 — Network Security Perimeter + Managed Identity -->
-<div id="flowS2" style="display:none">
+<!-- Scenario 3 — Network Security Perimeter + Managed Identity -->
+<div id="flowS3" style="display:none">
   <h2>🗺️ Traffic Flow — Network Security Perimeter (Identity Boundary)</h2>
-  <svg viewBox="0 0 900 430" role="img" aria-label="Scenario 2 network security perimeter traffic flow diagram">
+  <svg viewBox="0 0 900 430" role="img" aria-label="Scenario 3 network security perimeter traffic flow diagram">
     <defs>
       <marker id="ok2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#66bb6a"/></marker>
       <marker id="blue2" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L8,3 L0,6 Z" fill="#4fc3f7"/></marker>
@@ -475,10 +475,10 @@ h1{text-align:center;font-size:1.6rem;margin-bottom:.3rem;color:#fff}
   <p class="chat-meta">The App Service is <strong>not</strong> VNet-integrated. It calls Azure OpenAI over the <strong>public</strong> endpoint, but the <strong>Network Security Perimeter</strong> only admits callers whose <strong>managed identity</strong> matches the subscription inbound rule (<code>accessMode: Enforced</code>) — so the App Service (①) is allowed. A laptop using a <strong>user token</strong> is blocked at the perimeter even though the DNS name is public. The boundary is the <strong>identity layer</strong>, not the network. <span style="color:#90caf9">Blue = public HTTPS</span>; <span style="color:#a5d6a7">green = allowed (identity in perimeter)</span>; <span style="color:#ef9a9a">red dashed = blocked by NSP</span>.</p>
 </div>
 
-<!-- Scenario 3 — Private Data Path -->
-<div id="flowS3" style="display:none">
+<!-- Scenario 2 — Private Data Path -->
+<div id="flowS2" style="display:none">
   <h2>🗺️ Traffic Flow — Private Data Path</h2>
-  <svg viewBox="0 0 900 560" role="img" aria-label="Scenario 3 private traffic flow diagram">
+  <svg viewBox="0 0 900 560" role="img" aria-label="Scenario 2 private traffic flow diagram">
     <defs>
       <marker id="arrOk" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M0,0 L8,3 L0,6 Z" fill="#66bb6a"/>
@@ -605,23 +605,23 @@ function showFlow(id){
 function applyScenario(){
   if(IS_AGENT){applyAgent();return;}
   if(!IS_NSP){showFlow('flowS1');return;}
-  document.title="Scenario 2 — Azure OpenAI Network Security Perimeter Demo";
-  document.getElementById('pageTitle').textContent='🛡️ Scenario 2 — Azure OpenAI Network Security Perimeter Demo';
+  document.title="Scenario 3 — Azure OpenAI Network Security Perimeter Demo";
+  document.getElementById('pageTitle').textContent='🛡️ Scenario 3 — Azure OpenAI Network Security Perimeter Demo';
   document.getElementById('pageSubtitle').textContent='Protecting Azure OpenAI with a Network Security Perimeter + Managed Identity — no VNet Integration required';
   document.getElementById('lblPrivate').textContent='Endpoint DNS:';
   document.getElementById('lblVnetIP').textContent='Access control:';
   document.getElementById('lblVnet').textContent='VNet Integrated:';
   document.getElementById('scenarioNote').innerHTML='Endpoint stays public in DNS by design — the boundary is at the <strong>identity layer</strong>. Use the Chat Test below as the allow/deny proof: from the App Service (managed identity) it succeeds; from a laptop (user token) it is blocked by the perimeter.';
-  showFlow('flowS2');
+  showFlow('flowS3');
 }
 
 function applyAgent(){
-  document.title="Scenario 3 — Private Foundry Agent + VNet Injection";
-  document.getElementById('pageTitle').textContent='🤖 Scenario 3 — Private Foundry Agent (VNet Injection)';
+  document.title="Scenario 2 — Private Foundry Agent + VNet Injection";
+  document.getElementById('pageTitle').textContent='🤖 Scenario 2 — Private Foundry Agent (VNet Injection)';
   document.getElementById('pageSubtitle').textContent='A Foundry Agent injected into a VNet, grounding answers on private appliance manuals in Storage + AI Search — everything private, public access disabled';
   document.getElementById('scenarioNote').innerHTML='This WebApp is VNet-integrated on <code>app-subnet</code> — the only client that can reach the private agent. Seed the manuals, then ask <em>“why is my washer showing error E4?”</em> for a grounded answer with a citation to the private manual.';
   document.getElementById('agentPanel').style.display='block';
-  showFlow('flowS3');
+  showFlow('flowS2');
   document.getElementById('examples').style.display='flex';
   document.getElementById('promptInput').placeholder='e.g. Why is my washer showing error E4?';
   loadAgentInfo();

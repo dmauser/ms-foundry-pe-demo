@@ -44,7 +44,7 @@ var defaultVnetAddressPrefix = '192.168.0.0/16'
 var vnetAddress = empty(vnetAddressPrefix) ? defaultVnetAddressPrefix : vnetAddressPrefix
 var agentSubnet = empty(agentSubnetPrefix) ? cidrSubnet(vnetAddress, 24, 0) : agentSubnetPrefix
 var peSubnet = empty(peSubnetPrefix) ? cidrSubnet(vnetAddress, 24, 1) : peSubnetPrefix
-// Scenario 3 (ms-foundry-pe-demo): dedicated subnet for the VNet-integrated test
+// Scenario 2 (ms-foundry-pe-demo): dedicated subnet for the VNet-integrated test
 // WebApp, delegated to Microsoft.Web/serverFarms. Default 192.168.2.0/24.
 var appSubnet = empty(appSubnetPrefix) ? cidrSubnet(vnetAddress, 24, 2) : appSubnetPrefix
 

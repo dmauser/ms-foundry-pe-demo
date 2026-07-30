@@ -100,9 +100,9 @@ param appSubnetName string = 'app-subnet'
 @description('Address prefix for the App Service (test WebApp) subnet')
 param appSubnetPrefix string = ''
 
-// Scenario 3 (ms-foundry-pe-demo): deploy a VNet-integrated test WebApp — the
+// Scenario 2 (ms-foundry-pe-demo): deploy a VNet-integrated test WebApp — the
 // interactive proof surface and the only client that can reach the private agent.
-@description('Deploy the VNet-integrated test WebApp front end (Scenario 3 proof surface).')
+@description('Deploy the VNet-integrated test WebApp front end (Scenario 2 proof surface).')
 param deployTestWebApp bool = true
 
 @description('App Service plan SKU for the test WebApp.')
@@ -638,7 +638,7 @@ module applicationInsightsRoleAssignment 'modules-network-secured/application-in
 // (Azure.AI.Projects / Azure.AI.Agents.Persistent).
 var projectEndpoint = 'https://${accountName}.services.ai.azure.com/api/projects/${aiProject.outputs.projectName}'
 
-// Scenario 3 (ms-foundry-pe-demo) — VNet-integrated test WebApp front end.
+// Scenario 2 (ms-foundry-pe-demo) — VNet-integrated test WebApp front end.
 // The only client that can reach the private agent; hosts the seed/ask UI.
 module testWebApp 'modules-network-secured/test-webapp.bicep' = if (deployTestWebApp) {
   name: 'test-webapp-${uniqueSuffix}-deployment'

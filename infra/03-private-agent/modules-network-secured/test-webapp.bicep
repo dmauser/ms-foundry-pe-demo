@@ -1,4 +1,4 @@
-// Scenario 3 (ms-foundry-pe-demo) — VNet-integrated test WebApp.
+// Scenario 2 (ms-foundry-pe-demo) — VNet-integrated test WebApp.
 //
 // This is the ONLY client that can reach the private, network-injected Foundry
 // agent. It is deployed on the delegated `app-subnet` with regional VNet

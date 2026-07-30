@@ -78,7 +78,7 @@ output agentSubnetName string = agentSubnetName
 output peSubnetName string = peSubnetName
 output agentSubnetId string = useExistingVnet ? existingVNet.outputs.agentSubnetId : newVNet.outputs.agentSubnetId
 output peSubnetId string = useExistingVnet ? existingVNet.outputs.peSubnetId : newVNet.outputs.peSubnetId
-// Scenario 3 test WebApp subnet. Only populated on the new-VNet path (the
+// Scenario 2 test WebApp subnet. Only populated on the new-VNet path (the
 // existing-vnet path does not manage an app subnet); empty string otherwise.
 output appSubnetName string = appSubnetName
 output appSubnetId string = useExistingVnet ? '' : newVNet.outputs.appSubnetId

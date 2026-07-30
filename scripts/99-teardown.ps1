@@ -6,12 +6,12 @@
 # redeploys).
 #
 # Scenarios:
-#   nsp    -> rg-foundry-demo-<suffix>   (Scenarios 1 & 2, suffix file .deploy-suffix)
-#   agent  -> rg-foundry-agent-<suffix>  (Scenario 3,      suffix file .deploy-suffix-agent)
+#   nsp    -> rg-foundry-demo-<suffix>   (Scenarios 1 & 3, suffix file .deploy-suffix)
+#   agent  -> rg-foundry-agent-<suffix>  (Scenario 2,      suffix file .deploy-suffix-agent)
 #
 # Usage:
 #   ./99-teardown.ps1                        # nsp lab, saved suffix, prompt to confirm
-#   ./99-teardown.ps1 -Scenario agent        # Scenario 3 lab
+#   ./99-teardown.ps1 -Scenario agent        # Scenario 2 lab
 #   ./99-teardown.ps1 -Suffix abc12          # override the suffix
 #   ./99-teardown.ps1 -Subscription <id>     # target a specific subscription
 #   ./99-teardown.ps1 -Yes                   # skip the confirmation prompt

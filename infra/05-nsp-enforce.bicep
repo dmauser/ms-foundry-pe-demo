@@ -1,4 +1,4 @@
-// Scenario 2 — Step B: Lock the EXISTING Scenario 1 Foundry behind a
+// Scenario 3 — Step B: Lock the EXISTING Scenario 1 Foundry behind a
 // Network Security Perimeter (NSP) using an identity-based inbound rule.
 //
 // The perimeter is created in Enforced mode with a single "Subscriptions"

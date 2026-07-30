@@ -1,4 +1,4 @@
-// Scenario 2 — Step A: Deploy a second App Service (NO VNet Integration)
+// Scenario 3 — Step A: Deploy a second App Service (NO VNet Integration)
 // that reaches the EXISTING Scenario 1 Foundry over its public endpoint using
 // its own system-assigned managed identity. At this point the Foundry is still
 // public, so both the laptop and this App Service can call it. Step B (NSP)
