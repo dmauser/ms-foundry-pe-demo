@@ -174,10 +174,10 @@ scripts/01-deploy-public-access.sh
 pwsh scripts/01-deploy-public-access.ps1
 ```
 
-> **Note:** All resource names include a randomly generated 5-character suffix (e.g., `foundry-demo-ai-a3x9k`) to allow multiple users to deploy the demo in the same subscription without naming conflicts. The suffix is stored in `scripts/.deploy-suffix` and reused by both scripts.
+> **Note:** All resource names include a randomly generated 5-character suffix (e.g., `foundry-demo-ai-a3x9k`) to allow multiple users to deploy the demo in the same subscription without naming conflicts. The suffix is stored in `scripts/.deploy-suffix-s1` and reused by both Scenario 1 scripts.
 
 **What this does:**
-- Creates resource group: `rg-foundry-demo-<suffix>`
+- Creates resource group: `rg-foundry-s1-pe-<suffix>`
 - Deploys all infrastructure via Bicep (`infra/01-public-access.bicep`):
   - Azure AI Services: `foundry-demo-ai-<suffix>` (gpt-5-mini, GlobalStandard)
   - App Service Plan: `foundry-demo-plan-<suffix>` (Linux, B1)
@@ -229,7 +229,7 @@ pwsh scripts/02-enable-private-access.ps1
 
 > **🔍 Validate & monitor:** run `pwsh scripts/98-validate.ps1 -Scenario 1` (or `bash scripts/98-validate.sh -s 1`) for an automated pass/fail check, and see [`docs/network-validation.md`](docs/network-validation.md#scenario-1--private-endpoint--vnet-integration) for the config-assert table, traffic-flow hops, and troubleshooting. A deeper evidence log lives in [`docs/network-evidence.md`](docs/network-evidence.md).
 
-> **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/`). Wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. PowerShell (`.ps1`) equivalents exist for every script and share the same `scripts/.deploy-suffix` file.
+> **Infrastructure as Code:** All Azure resources are provisioned via **Bicep templates** (`infra/`). Wrapper scripts handle only suffix generation, resource group creation, Bicep deployment, and .NET app packaging. PowerShell (`.ps1`) equivalents exist for every script and share the same per-scenario suffix file (e.g. `scripts/.deploy-suffix-s1`).
 
 ### Expected Behavior
 
@@ -350,7 +350,7 @@ Mitigations baked in: **Cosmos = serverless** (~$0 idle), **Storage = pennies**,
 ### Deploy (Scenario 2)
 
 > **Prerequisite:** completely **self-contained** — its own resource group
-> (`rg-foundry-agent-<suffix>`), own suffix (`scripts/.deploy-suffix-agent`), region
+> (`rg-foundry-s2-agent-<suffix>`), own suffix (`scripts/.deploy-suffix-s2`), region
 > `westus3`. It does **not** touch Scenario 1/3 infra. The script registers the required
 > resource providers automatically. Deployment takes **~10–15 min** (capability host +
 > private endpoints).
@@ -464,7 +464,7 @@ graph LR
 
 ### Deploy (Scenario 3)
 
-> **Prerequisite:** Scenario 3 runs from the **Scenario 1 Phase-1 (public) baseline** — you must have already run `01-deploy-public-access` (it creates the Foundry + App Service Plan and the shared `.deploy-suffix`). You do **not** need Scenario 1 Phase 2 (`02-*`).
+> **Prerequisite:** Scenario 3 runs from a **dedicated Scenario-3 public baseline** — you must have already run `01-deploy-public-access -Scenario s3` (`--scenario s3` for bash), which creates a separate Foundry + App Service Plan and the `.deploy-suffix-s3`. You do **not** need Scenario 1 Phase 2 (`02-*`).
 >
 > ⚠️ **Do not mix scenarios on the same Foundry.** Scenario 3 (`05-enforce-nsp`) is an **alternative** to Scenario 1 Phase 2 (`02-enable-private-access`). Applying both a private endpoint (`02`) and an NSP (`04`) to the same Foundry is not the intended demo path. To run Scenario 3 cleanly after Scenario 1 Phase 2, re-enable public access first (Step A does this automatically).
 >
@@ -583,7 +583,7 @@ Every inbound/outbound evaluation is logged as `ResultAction` = **`Approved`** o
 5. **Query the proof** — in the Azure Portal open the workspace → **Logs**, or run it from the CLI:
    ```bash
    WORKSPACE_ID=$(az monitor log-analytics workspace show \
-     -g rg-foundry-demo-<suffix> -n foundry-demo-law-<suffix> \
+     -g rg-foundry-s3-nsp-<suffix> -n foundry-demo-law-<suffix> \
      --query customerId -o tsv)
 
    az monitor log-analytics query -w "$WORKSPACE_ID" --analytics-query '
@@ -826,10 +826,11 @@ ms-foundry-secure-access/
 │   ├── 05-enforce-nsp.ps1             # Scenario 3 Step B: PowerShell wrapper
 │   ├── 98-validate.sh                 # Read-only validator (Bash): -s 1|2|3|all pass/fail table
 │   ├── 98-validate.ps1                # Read-only validator (PowerShell): -Scenario 1|2|3|all
-│   ├── 99-teardown.sh                 # Teardown (Bash): -Scenario nsp|agent, purges Foundry
-│   ├── 99-teardown.ps1                # Teardown (PowerShell): -Scenario nsp|agent, purges Foundry
-│   ├── .deploy-suffix                 # Generated suffix (gitignored, Scenarios 1 & 3)
-│   └── .deploy-suffix-agent           # Generated suffix (gitignored, Scenario 2)
+│   ├── 99-teardown.sh                 # Teardown (Bash): --scenario s1|s2|s3, purges Foundry
+│   ├── 99-teardown.ps1                # Teardown (PowerShell): -Scenario s1|s2|s3, purges Foundry
+│   ├── .deploy-suffix-s1              # Generated suffix (gitignored, Scenario 1)
+│   ├── .deploy-suffix-s2              # Generated suffix (gitignored, Scenario 2)
+│   └── .deploy-suffix-s3              # Generated suffix (gitignored, Scenario 3)
 ├── .github/                           # GitHub config & copilot instructions
 └── .gitignore                         # Git ignore rules
 ```
@@ -906,7 +907,7 @@ Scenario 2 is deployed on demand into its **own** resource group (`westus3`) and
 
 **Bottom line for Scenario 2:** AI Search + B1 bill **hourly whether or not you use them**,
 so **~$0.20/hr (~$185/mo if left running)**. Because it's **deploy-on-demand + tear-down-
-after**, a **1-hour demo ≈ $0.25**. **Always run `99-teardown -Scenario agent` when done** —
+after**, a **1-hour demo ≈ $0.25**. **Always run `99-teardown -Scenario s2` when done** —
 AI Search Basic cannot be paused.
 
 > Figures are approximate list prices and vary by region, currency, and actual
@@ -918,46 +919,46 @@ AI Search Basic cannot be paused.
 
 ## Clean Up
 
-To tear down **all** demo resources, use the teardown script. It reads the saved
-suffix from `scripts/.deploy-suffix`, shows what will be deleted, asks you to
-confirm, then deletes the whole resource group (which cascades every resource
-from phases 1–4, including the Network Security Perimeter and Log Analytics).
+Each scenario deploys into its **own** resource group, so tear each one down
+independently with `-Scenario s1|s2|s3` (default `s1`). The script reads that
+scenario's saved suffix file, shows what will be deleted, asks you to confirm,
+then deletes the whole resource group (which cascades every resource in it —
+including the Network Security Perimeter and Log Analytics for Scenario 3).
+
+| Scenario | Resource group | Suffix file |
+|----------|----------------|-------------|
+| 1 — Private Endpoint | `rg-foundry-s1-pe-<suffix>`    | `scripts/.deploy-suffix-s1` |
+| 2 — Private Agent    | `rg-foundry-s2-agent-<suffix>` | `scripts/.deploy-suffix-s2` |
+| 3 — NSP              | `rg-foundry-s3-nsp-<suffix>`   | `scripts/.deploy-suffix-s3` |
 
 ```bash
+# Scenario 1 (default):
 scripts/99-teardown.sh
+# other scenarios:
+scripts/99-teardown.sh --scenario s2
+scripts/99-teardown.sh --scenario s3
 # non-interactive / CI:
-scripts/99-teardown.sh --yes --no-wait
+scripts/99-teardown.sh --scenario s3 --yes --no-wait
 # target a specific subscription or suffix:
-scripts/99-teardown.sh --subscription <sub-id> --suffix <suffix>
+scripts/99-teardown.sh --scenario s1 --subscription <sub-id> --suffix <suffix>
 ```
 
 ```powershell
+# Scenario 1 (default):
 pwsh scripts/99-teardown.ps1
+# other scenarios:
+pwsh scripts/99-teardown.ps1 -Scenario s2
+pwsh scripts/99-teardown.ps1 -Scenario s3
 # non-interactive / CI:
-pwsh scripts/99-teardown.ps1 -Yes -NoWait
+pwsh scripts/99-teardown.ps1 -Scenario s3 -Yes -NoWait
 # target a specific subscription or suffix:
-pwsh scripts/99-teardown.ps1 -Subscription <sub-id> -Suffix <suffix>
+pwsh scripts/99-teardown.ps1 -Scenario s1 -Subscription <sub-id> -Suffix <suffix>
 ```
 
-On success the script also clears `scripts/.deploy-suffix` so the next deployment
-generates a fresh suffix.
+> Legacy aliases `pe` → `s1`, `agent` → `s2`, `nsp` → `s3` are still accepted.
 
-### Scenario 2 (Private Agent) teardown
-
-Scenario 3 lives in its own resource group with its own suffix file
-(`scripts/.deploy-suffix-agent`). Pass `-Scenario agent` / `--scenario agent`:
-
-```bash
-scripts/99-teardown.sh --scenario agent
-# non-interactive / CI:
-scripts/99-teardown.sh --scenario agent --yes
-```
-
-```powershell
-pwsh scripts/99-teardown.ps1 -Scenario agent
-# non-interactive / CI:
-pwsh scripts/99-teardown.ps1 -Scenario agent -Yes
-```
+On success the script also clears that scenario's suffix file (e.g.
+`scripts/.deploy-suffix-s1`) so the next deployment generates a fresh suffix.
 
 > **Foundry soft-delete purge:** deleting the resource group only *soft-deletes* the
 > Foundry (Cognitive Services) account, which blocks a same-name redeploy and still counts
@@ -970,15 +971,15 @@ pwsh scripts/99-teardown.ps1 -Scenario agent -Yes
 <summary>Manual one-liner (if you prefer not to use the script)</summary>
 
 ```bash
-# Read suffix from file
-SUFFIX=$(cat scripts/.deploy-suffix)
-az group delete -n "rg-foundry-demo-$SUFFIX" --yes --no-wait
+# Read the Scenario-1 suffix from file (use -s2 / -s3 for other scenarios)
+SUFFIX=$(cat scripts/.deploy-suffix-s1)
+az group delete -n "rg-foundry-s1-pe-$SUFFIX" --yes --no-wait
 ```
 
 ```powershell
 # PowerShell
-$Suffix = (Get-Content scripts/.deploy-suffix -Raw).Trim()
-az group delete -n "rg-foundry-demo-$Suffix" --yes --no-wait
+$Suffix = (Get-Content scripts/.deploy-suffix-s1 -Raw).Trim()
+az group delete -n "rg-foundry-s1-pe-$Suffix" --yes --no-wait
 ```
 
 </details>

@@ -186,8 +186,8 @@ az account set --subscription "YOUR_SUBSCRIPTION_ID"
 
 **What the script does:**
 1. Generates a random 5-character suffix (e.g., `a3x9k`)
-2. Stores suffix in `scripts/.deploy-suffix` for reuse
-3. Creates resource group: `rg-foundry-demo-a3x9k`
+2. Stores suffix in `scripts/.deploy-suffix-s1` for reuse
+3. Creates resource group: `rg-foundry-s1-pe-a3x9k`
 4. Deploys Azure AI Foundry: `foundry-demo-ai-a3x9k`
    - Service: Azure AI Services (AIServices kind)
    - Model: gpt-5-mini
@@ -207,7 +207,7 @@ az account set --subscription "YOUR_SUBSCRIPTION_ID"
 **Output:**
 ```
 Suffix: a3x9k
-Resource Group: rg-foundry-demo-a3x9k
+Resource Group: rg-foundry-s1-pe-a3x9k
 AI Foundry Endpoint: https://foundry-demo-ai-a3x9k.cognitiveservices.azure.com/
 App Service: https://foundry-demo-app-a3x9k.azurewebsites.net
 ```
@@ -240,7 +240,7 @@ bash scripts/02-enable-private-access.sh
 ```
 
 **What the script does:**
-1. Reads suffix from `scripts/.deploy-suffix`
+1. Reads suffix from `scripts/.deploy-suffix-s1`
 2. Enables VNet Integration on App Service
    - Subnet: app-service-subnet (10.0.1.0/24)
    - App Service receives private IP: 10.0.1.x
@@ -496,10 +496,10 @@ curl https://foundry-demo-app-a3x9k.azurewebsites.net/api/diagnostics | jq
 - **Phase 1 (PowerShell):** `.\scripts\01-deploy-public-access.ps1`
 - **Phase 2 (Bash):** `bash scripts/02-enable-private-access.sh`
 - **Phase 2 (PowerShell):** `.\scripts\02-enable-private-access.ps1`
-- **Suffix:** Auto-generated and stored in `scripts/.deploy-suffix` (shared by both scripts)
+- **Suffix:** Auto-generated and stored in `scripts/.deploy-suffix-s1` (shared by both Scenario 1 scripts)
 
 ### Resource Naming (example with suffix `a3x9k`)
-- Resource Group: `rg-foundry-demo-a3x9k`
+- Resource Group: `rg-foundry-s1-pe-a3x9k`
 - AI Foundry: `foundry-demo-ai-a3x9k.cognitiveservices.azure.com`
 - App Service: `https://foundry-demo-app-a3x9k.azurewebsites.net`
 - VNet: `foundry-demo-vnet-a3x9k`

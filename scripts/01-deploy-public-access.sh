@@ -3,23 +3,48 @@
 # Phase 1: Deploy Azure AI Foundry Demo with Public Access
 # Thin wrapper: Bicep handles all Azure resources. This script only handles
 # suffix generation, resource group creation, Bicep deployment, and app deploy.
+#
+# Shared baseline for Scenario 1 (Private Endpoint) and Scenario 3 (NSP). Pick
+# which scenario's resource group to create with --scenario:
+#   --scenario s1  -> rg-foundry-s1-pe-<suffix>   (suffix file .deploy-suffix-s1)  [default]
+#   --scenario s3  -> rg-foundry-s3-nsp-<suffix>  (suffix file .deploy-suffix-s3)
 ###############################################################################
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# --- Args ---
+SCENARIO="s1"
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --scenario) SCENARIO="$2"; shift 2 ;;
+        *) echo "Unknown argument: $1" >&2; exit 1 ;;
+    esac
+done
+
+# --- Scenario -> RG prefix + suffix file ---
+if [[ "$SCENARIO" == "s3" ]]; then
+    RG_PREFIX="rg-foundry-s3-nsp-"
+    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s3"
+elif [[ "$SCENARIO" == "s1" ]]; then
+    RG_PREFIX="rg-foundry-s1-pe-"
+    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s1"
+else
+    echo "✗ Unknown --scenario '$SCENARIO' (expected 's1' or 's3')." >&2
+    exit 1
+fi
+
 # --- Suffix (generate once, reuse) ---
-SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix"
 if [[ -f "$SUFFIX_FILE" ]]; then
     SUFFIX=$(cat "$SUFFIX_FILE")
 else
     SUFFIX=$(cat /dev/urandom | tr -dc 'a-z0-9' | head -c 5)
     printf '%s' "$SUFFIX" > "$SUFFIX_FILE"
 fi
-echo "Using deployment suffix: $SUFFIX"
+echo "Using deployment suffix: $SUFFIX (scenario: $SCENARIO)"
 
-RESOURCE_GROUP="rg-foundry-demo-$SUFFIX"
+RESOURCE_GROUP="$RG_PREFIX$SUFFIX"
 LOCATION="centralus"
 WEB_APP_NAME="foundry-demo-app-$SUFFIX"
 

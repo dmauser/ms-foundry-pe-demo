@@ -33,8 +33,9 @@ pwsh scripts/98-validate.ps1                 # all deployed scenarios
 pwsh scripts/98-validate.ps1 -Scenario 2     # only Scenario 2
 ```
 
-- **Scenario 1 & 3** are discovered from `scripts/.deploy-suffix` → RG `rg-foundry-demo-<suffix>`.
-- **Scenario 2** is discovered from `scripts/.deploy-suffix-agent` → RG `rg-foundry-agent-<suffix>`.
+- **Scenario 1** is discovered from `scripts/.deploy-suffix-s1` → RG `rg-foundry-s1-pe-<suffix>`.
+- **Scenario 2** is discovered from `scripts/.deploy-suffix-s2` → RG `rg-foundry-s2-agent-<suffix>`.
+- **Scenario 3** is discovered from `scripts/.deploy-suffix-s3` → RG `rg-foundry-s3-nsp-<suffix>`.
 - A scenario whose suffix file / resource group is missing is reported **SKIP**, not FAIL.
 - Override discovery with `-Suffix <s>` / `-ResourceGroup <rg>` (`-suffix` / `-g` in Bash).
 - Exit code is **non-zero** if any *critical* check fails (handy in CI / pre-demo gates).
@@ -51,7 +52,7 @@ the script, so run them from your laptop to reproduce the "outside the VNet" con
 (via a private endpoint + private DNS). The App Service is VNet-integrated so its outbound
 calls resolve the Foundry FQDN to a `10.x` private IP; a laptop cannot reach it.
 
-Resource names (suffix from `scripts/.deploy-suffix`, RG `rg-foundry-demo-<suffix>`, region `centralus`):
+Resource names (suffix from `scripts/.deploy-suffix-s1`, RG `rg-foundry-s1-pe-<suffix>`, region `centralus`):
 
 | Resource | Name |
 |----------|------|
@@ -64,12 +65,12 @@ Resource names (suffix from `scripts/.deploy-suffix`, RG `rg-foundry-demo-<suffi
 
 | Check | Command | Expected |
 |-------|---------|----------|
-| Public access disabled | `az cognitiveservices account show -g rg-foundry-demo-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
-| Private endpoint approved | `az network private-endpoint list -g rg-foundry-demo-<suffix> --query "[].privateLinkServiceConnections[].privateLinkServiceConnectionState.status" -o tsv` | `Approved` |
-| DNS zone linked to VNet | `az network private-dns link vnet list -g rg-foundry-demo-<suffix> -z privatelink.cognitiveservices.azure.com --query "[].virtualNetwork.id" -o tsv` | contains `foundry-demo-vnet-<suffix>` |
-| DNS A-record is private | `az network private-dns record-set a list -g rg-foundry-demo-<suffix> -z privatelink.cognitiveservices.azure.com --query "[].aRecords[].ipv4Address" -o tsv` | `10.x.x.x` |
-| App Service VNet integration | `az webapp show -g rg-foundry-demo-<suffix> -n foundry-demo-app-<suffix> --query "virtualNetworkSubnetId" -o tsv` | subnet resource id (non-empty) |
-| Route-all outbound | `az webapp config show -g rg-foundry-demo-<suffix> -n foundry-demo-app-<suffix> --query vnetRouteAllEnabled -o tsv` | `true` |
+| Public access disabled | `az cognitiveservices account show -g rg-foundry-s1-pe-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
+| Private endpoint approved | `az network private-endpoint list -g rg-foundry-s1-pe-<suffix> --query "[].privateLinkServiceConnections[].privateLinkServiceConnectionState.status" -o tsv` | `Approved` |
+| DNS zone linked to VNet | `az network private-dns link vnet list -g rg-foundry-s1-pe-<suffix> -z privatelink.cognitiveservices.azure.com --query "[].virtualNetwork.id" -o tsv` | contains `foundry-demo-vnet-<suffix>` |
+| DNS A-record is private | `az network private-dns record-set a list -g rg-foundry-s1-pe-<suffix> -z privatelink.cognitiveservices.azure.com --query "[].aRecords[].ipv4Address" -o tsv` | `10.x.x.x` |
+| App Service VNet integration | `az webapp show -g rg-foundry-s1-pe-<suffix> -n foundry-demo-app-<suffix> --query "virtualNetworkSubnetId" -o tsv` | subnet resource id (non-empty) |
+| Route-all outbound | `az webapp config show -g rg-foundry-s1-pe-<suffix> -n foundry-demo-app-<suffix> --query vnetRouteAllEnabled -o tsv` | `true` |
 
 ### Traffic flow
 
@@ -107,7 +108,7 @@ validation guidance**.
 
 Names here derive from an internal `uniqueString(resourceGroup().id)` (not the suffix file),
 so the validator **discovers resources by listing within the RG** rather than constructing
-names. Suffix file `scripts/.deploy-suffix-agent` → RG `rg-foundry-agent-<suffix>`, region `westus3`.
+names. Suffix file `scripts/.deploy-suffix-s2` → RG `rg-foundry-s2-agent-<suffix>`, region `westus3`.
 
 VNet layout: `192.168.0.0/16` with `agent-subnet` (`.0.0/24`, delegated
 `Microsoft.App/environments`), `pe-subnet` (`.1.0/24`, private endpoints), `app-subnet`
@@ -115,7 +116,7 @@ VNet layout: `192.168.0.0/16` with `agent-subnet` (`.0.0/24`, delegated
 
 ### Config to assert
 
-| Check | Command (RG = `rg-foundry-agent-<suffix>`) | Expected |
+| Check | Command (RG = `rg-foundry-s2-agent-<suffix>`) | Expected |
 |-------|--------------------------------------------|----------|
 | Storage public access off | `az storage account list -g <rg> --query "[].publicNetworkAccess" -o tsv` | `Disabled` |
 | Cosmos public access off | `az cosmosdb list -g <rg> --query "[].publicNetworkAccess" -o tsv` | `Disabled` |
@@ -186,16 +187,16 @@ Resource names (same suffix / RG / region as Scenario 1):
 
 | Check | Command | Expected |
 |-------|---------|----------|
-| Public access disabled | `az cognitiveservices account show -g rg-foundry-demo-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
-| NSP exists | `az network perimeter list -g rg-foundry-demo-<suffix> --query "[].name" -o tsv` | `foundry-demo-nsp-<suffix>` |
-| Foundry associated to NSP | `az network perimeter association list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --query "[].properties.accessMode" -o tsv` | `Enforced` (or `Learning` while tuning) |
-| Inbound access rule present | `az network perimeter profile access-rule list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-demo-<suffix> --profile-name <profile> --query "[].name" -o tsv` | at least one rule |
-| NSP app has **no** VNet integration | `az webapp show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-app-<suffix> --query virtualNetworkSubnetId -o tsv` | empty / `None` |
+| Public access disabled | `az cognitiveservices account show -g rg-foundry-s3-nsp-<suffix> -n foundry-demo-ai-<suffix> --query properties.publicNetworkAccess -o tsv` | `Disabled` |
+| NSP exists | `az network perimeter list -g rg-foundry-s3-nsp-<suffix> --query "[].name" -o tsv` | `foundry-demo-nsp-<suffix>` |
+| Foundry associated to NSP | `az network perimeter association list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-s3-nsp-<suffix> --query "[].properties.accessMode" -o tsv` | `Enforced` (or `Learning` while tuning) |
+| Inbound access rule present | `az network perimeter profile access-rule list --perimeter-name foundry-demo-nsp-<suffix> -g rg-foundry-s3-nsp-<suffix> --profile-name <profile> --query "[].name" -o tsv` | at least one rule |
+| NSP app has **no** VNet integration | `az webapp show -g rg-foundry-s3-nsp-<suffix> -n foundry-demo-nsp-app-<suffix> --query virtualNetworkSubnetId -o tsv` | empty / `None` |
 | Diagnostic logs wired | `az monitor diagnostic-settings list --resource <nsp-id> --query "[?name=='nsp-access-logs'] | length(@)"` | `1` |
 
 > `<profile>` is the NSP's default profile (list with `az network perimeter profile list`).
 > The NSP resource id for the diagnostic-settings check comes from
-> `az network perimeter show -g rg-foundry-demo-<suffix> -n foundry-demo-nsp-<suffix> --query id -o tsv`.
+> `az network perimeter show -g rg-foundry-s3-nsp-<suffix> -n foundry-demo-nsp-<suffix> --query id -o tsv`.
 
 ### Traffic flow
 

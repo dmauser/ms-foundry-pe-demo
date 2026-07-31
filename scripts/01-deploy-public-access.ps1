@@ -2,13 +2,31 @@
 # Phase 1: Deploy Azure AI Foundry Demo with Public Access
 # Thin wrapper: Bicep handles all Azure resources. This script only handles
 # suffix generation, resource group creation, Bicep deployment, and app deploy.
+#
+# Shared baseline for Scenario 1 (Private Endpoint) and Scenario 3 (NSP). Pick
+# which scenario's resource group to create with -Scenario:
+#   -Scenario s1  -> rg-foundry-s1-pe-<suffix>   (suffix file .deploy-suffix-s1)  [default]
+#   -Scenario s3  -> rg-foundry-s3-nsp-<suffix>  (suffix file .deploy-suffix-s3)
 ###############################################################################
+param(
+    [ValidateSet('s1', 's3')]
+    [string]$Scenario = 's1'
+)
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
+# --- Scenario -> RG prefix + suffix file ---
+if ($Scenario -eq 's3') {
+    $RgPrefix = "rg-foundry-s3-nsp-"
+    $SuffixFileName = ".deploy-suffix-s3"
+} else {
+    $RgPrefix = "rg-foundry-s1-pe-"
+    $SuffixFileName = ".deploy-suffix-s1"
+}
+
 # --- Suffix (generate once, reuse) ---
-$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
+$SuffixFile = Join-Path $PSScriptRoot $SuffixFileName
 if (Test-Path $SuffixFile) {
     $Suffix = (Get-Content $SuffixFile -Raw).Trim()
 } else {
@@ -16,9 +34,9 @@ if (Test-Path $SuffixFile) {
     $Suffix = -join (1..5 | ForEach-Object { $Chars[(Get-Random -Maximum $Chars.Length)] })
     $Suffix | Out-File -FilePath $SuffixFile -NoNewline -Encoding utf8
 }
-Write-Host "Using deployment suffix: $Suffix"
+Write-Host "Using deployment suffix: $Suffix (scenario: $Scenario)"
 
-$ResourceGroup = "rg-foundry-demo-$Suffix"
+$ResourceGroup = "$RgPrefix$Suffix"
 $Location = "centralus"
 $WebAppName = "foundry-demo-app-$Suffix"
 

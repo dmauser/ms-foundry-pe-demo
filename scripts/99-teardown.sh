@@ -6,13 +6,14 @@
 # linger (soft-deleted accounts still count against quota and block same-name
 # redeploys).
 #
-# Scenarios:
-#   nsp    -> rg-foundry-demo-<suffix>   (Scenarios 1 & 3, suffix file .deploy-suffix)
-#   agent  -> rg-foundry-agent-<suffix>  (Scenario 2,      suffix file .deploy-suffix-agent)
+# Scenarios (with legacy aliases accepted):
+#   s1  (alias pe)     -> rg-foundry-s1-pe-<suffix>     (Scenario 1, suffix file .deploy-suffix-s1)
+#   s2  (alias agent)  -> rg-foundry-s2-agent-<suffix>  (Scenario 2, suffix file .deploy-suffix-s2)
+#   s3  (alias nsp)    -> rg-foundry-s3-nsp-<suffix>    (Scenario 3, suffix file .deploy-suffix-s3)
 #
 # Usage:
-#   ./99-teardown.sh                       # nsp lab, saved suffix, prompt to confirm
-#   ./99-teardown.sh --scenario agent      # Scenario 2 lab
+#   ./99-teardown.sh                       # Scenario 1 lab, saved suffix, prompt to confirm
+#   ./99-teardown.sh --scenario s2         # Scenario 2 lab
 #   ./99-teardown.sh --suffix abc12        # override the suffix
 #   ./99-teardown.sh --subscription <id>   # target a specific subscription
 #   ./99-teardown.sh --yes                 # skip the confirmation prompt
@@ -22,7 +23,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-SCENARIO="nsp"
+SCENARIO="s1"
 SUFFIX=""
 SUBSCRIPTION=""
 ASSUME_YES="false"
@@ -39,15 +40,25 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# --- Normalize legacy aliases (pe->s1, agent->s2, nsp->s3) ---
+case "$SCENARIO" in
+    pe)    SCENARIO="s1" ;;
+    agent) SCENARIO="s2" ;;
+    nsp)   SCENARIO="s3" ;;
+esac
+
 # --- Scenario -> RG prefix + suffix file ---
-if [[ "$SCENARIO" == "agent" ]]; then
-    RG_PREFIX="rg-foundry-agent-"
-    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-agent"
-elif [[ "$SCENARIO" == "nsp" ]]; then
-    RG_PREFIX="rg-foundry-demo-"
-    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix"
+if [[ "$SCENARIO" == "s2" ]]; then
+    RG_PREFIX="rg-foundry-s2-agent-"
+    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s2"
+elif [[ "$SCENARIO" == "s3" ]]; then
+    RG_PREFIX="rg-foundry-s3-nsp-"
+    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s3"
+elif [[ "$SCENARIO" == "s1" ]]; then
+    RG_PREFIX="rg-foundry-s1-pe-"
+    SUFFIX_FILE="$SCRIPT_DIR/.deploy-suffix-s1"
 else
-    echo "✗ Unknown --scenario '$SCENARIO' (expected 'nsp' or 'agent')." >&2
+    echo "✗ Unknown --scenario '$SCENARIO' (expected 's1', 's2' or 's3')." >&2
     exit 1
 fi
 

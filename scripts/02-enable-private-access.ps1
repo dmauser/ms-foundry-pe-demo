@@ -7,15 +7,15 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 # --- Load suffix ---
-$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
+$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s1"
 if (-not (Test-Path $SuffixFile)) {
-    Write-Host "❌ No .deploy-suffix file found. Run Phase 1 first." -ForegroundColor Red
+    Write-Host "❌ No .deploy-suffix-s1 file found. Run Phase 1 first (01-deploy-public-access.ps1)." -ForegroundColor Red
     exit 1
 }
 $Suffix = (Get-Content $SuffixFile -Raw).Trim()
 Write-Host "Using deployment suffix: $Suffix"
 
-$ResourceGroup = "rg-foundry-demo-$Suffix"
+$ResourceGroup = "rg-foundry-s1-pe-$Suffix"
 $Location = "centralus"
 
 # --- Deploy Bicep (private endpoint infra) ---

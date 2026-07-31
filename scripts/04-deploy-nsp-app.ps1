@@ -9,15 +9,15 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path $PSScriptRoot -Parent
 
 # --- Load suffix (from Scenario 1) ---
-$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix"
+$SuffixFile = Join-Path $PSScriptRoot ".deploy-suffix-s3"
 if (-not (Test-Path $SuffixFile)) {
-    Write-Host "❌ No .deploy-suffix file found. Run Scenario 1 (01-deploy-public-access.ps1) first." -ForegroundColor Red
+    Write-Host "❌ No .deploy-suffix-s3 file found. Run the Scenario 3 baseline first (01-deploy-public-access.ps1 -Scenario s3)." -ForegroundColor Red
     exit 1
 }
 $Suffix = (Get-Content $SuffixFile -Raw).Trim()
 Write-Host "Using deployment suffix: $Suffix"
 
-$ResourceGroup = "rg-foundry-demo-$Suffix"
+$ResourceGroup = "rg-foundry-s3-nsp-$Suffix"
 $Location = "centralus"
 $AiServicesName = "foundry-demo-ai-$Suffix"
 $NspWebAppName = "foundry-demo-nsp-app-$Suffix"
